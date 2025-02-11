@@ -2,6 +2,9 @@
 
 A modern desktop chat application built with Electron and Next.js, designed to work with local AI models through Ollama. Mata provides a sleek, native-feeling interface for interacting with various AI models while keeping all data and processing local.
 
+Preview (clone repo and run locally for full features):
+[https://mataai.netlify.app/](Mata)
+
 ## Features
 
 - 🖥️ Native desktop application with custom title bar and window controls
