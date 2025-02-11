@@ -10,8 +10,57 @@
     "lint": "next lint",
     "electron": "wait-on http://localhost:3000 && electron .",
     "electron-dev": "concurrently \"npm run dev\" \"npm run electron\"",
-    "electron-build": "next build && electron-builder",
-    "release": "next build && electron-builder --publish=always"
+    "pack": "next build && electron-builder --dir",
+    "dist": "rimraf dist && rimraf out && next build && electron-builder --win --publish never",
+    "release": "next build && electron-builder --publish=always",
+    "test-rag": "ts-node src/test-rag.ts"
+  },
+  "build": {
+    "appId": "com.jacobkobr.mata",
+    "productName": "Mata AI",
+    "asar": true,
+    "files": [
+      "./electron/**/*",
+      "./package.json",
+      "./out/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "./out",
+        "to": "./app",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "./public",
+        "to": "./public",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "directories": {
+      "output": "./dist",
+      "buildResources": "./public"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "./public/icons/mata.ico",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Mata AI",
+      "installerIcon": "./public/icons/mata.ico",
+      "uninstallerIcon": "./public/icons/mata.ico",
+      "perMachine": false
+    }
   },
   "dependencies": {
     "@hookform/resolvers": "^3.3.4",
@@ -19,68 +68,55 @@
     "@radix-ui/react-dropdown-menu": "^2.0.6",
     "@radix-ui/react-slot": "^1.0.2",
     "@radix-ui/react-toast": "^1.1.5",
-    "@types/better-sqlite3": "^7.6.12",
-    "better-sqlite3": "^11.8.1",
+    "@types/react-katex": "^3.0.4",
+    "@types/uuid": "^10.0.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
+    "critters": "^0.0.23",
+    "katex": "^0.16.21",
     "lucide-react": "^0.323.0",
     "next": "^14.1.0",
     "next-themes": "^0.4.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-hook-form": "^7.50.1",
+    "react-katex": "^3.0.1",
     "react-markdown": "^9.0.3",
+    "remark-gfm": "^4.0.0",
+    "remark-math": "^6.0.0",
+    "systeminformation": "^5.25.11",
     "tailwind-merge": "^2.2.1",
     "tailwindcss-animate": "^1.0.7",
+    "uuid": "^11.0.5",
     "zod": "^3.22.4",
     "zustand": "^4.5.0"
   },
   "devDependencies": {
+    "@tailwindcss/nesting": "^0.0.0-insiders.565cd3e",
     "@types/node": "^20.11.17",
     "@types/react": "^18.2.55",
     "@types/react-dom": "^18.2.19",
-    "autoprefixer": "^10.4.17",
+    "autoprefixer": "^10.4.20",
     "concurrently": "^8.2.2",
+    "css-loader": "^7.1.2",
     "electron": "^28.2.0",
-    "electron-builder": "^24.9.1",
-    "electron-is-dev": "^2.0.0",
+    "electron-builder": "^25.1.8",
+    "electron-packager": "^17.1.2",
     "eslint": "^8.56.0",
     "eslint-config-next": "^14.1.0",
     "postcss": "^8.4.35",
+    "postcss-loader": "^8.1.1",
+    "rimraf": "^6.0.1",
+    "style-loader": "^4.0.0",
     "tailwindcss": "^3.4.1",
+    "ts-node": "^10.9.2",
     "typescript": "^5.3.3",
     "wait-on": "^7.2.0"
   },
   "private": true,
   "license": "MIT",
-  "build": {
-    "appId": "com.mata.ai",
-    "productName": "Mata AI",
-    "files": [
-      "electron/**/*",
-      "out/**/*",
-      "public/**/*"
-    ],
-    "directories": {
-      "buildResources": "public"
-    },
-    "win": {
-      "target": [
-        "nsis"
-      ],
-      "icon": "public/icons/mata.ico"
-    },
-    "mac": {
-      "target": [
-        "dmg"
-      ],
-      "icon": "public/icons/mata.ico"
-    },
-    "linux": {
-      "target": [
-        "AppImage"
-      ],
-      "icon": "public/icons/mata.ico"
-    }
+  "author": {
+    "name": "Jacob",
+    "email": ""
   }
 }

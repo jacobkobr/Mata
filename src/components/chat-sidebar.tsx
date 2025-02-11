@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { MessageSquarePlus, Trash2, Edit2, Check, X, MessageSquare, Clock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useChatStore } from '@/store/chat-store'
-import type { DBChat } from '@/lib/db-service'
+import { ChatSearch } from './chat-search'
+import type { DBChat } from '@/lib/types'
 
 export function ChatSidebar() {
   const { 
@@ -64,7 +65,7 @@ export function ChatSidebar() {
 
   return (
     <div className="w-80 h-full bg-card border-r border-border flex flex-col">
-      <div className="p-4 border-b border-border">
+      <div className="p-4 border-b border-border space-y-2">
         <button
           onClick={handleStartNewChat}
           className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity"
@@ -72,6 +73,7 @@ export function ChatSidebar() {
           <MessageSquarePlus className="h-5 w-5" />
           <span className="font-medium">New Chat</span>
         </button>
+        <ChatSearch />
       </div>
 
       <div className="flex-1 overflow-y-auto">

@@ -41,3 +41,6 @@ next-env.d.ts
 
 # SQLite database
 .mata/
+TECHNICAL_DOCUMENTATION.md
+tall
+CHANGELOG.md

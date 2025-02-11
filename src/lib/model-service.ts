@@ -5,6 +5,7 @@ export interface ModelInfo {
   status: 'not_installed' | 'installed' | 'running' | 'error'
   error?: string
   progress?: number
+  size?: string  // Size in GB
 }
 
 // Add model name mapping for Ollama
@@ -20,6 +21,7 @@ export const MODEL_PULL_NAMES: Record<string, string> = {
   'deepseek-14b': 'deepseek-r1:14b',
   'deepseek-32b': 'deepseek-r1:32b',
   'mistral-7b': 'mistral:latest',
+  'mistral-nemo': 'mistral-nemo:latest',
   'phi-2': 'phi:latest',
   'gemma-2b': 'gemma:2b',
   'gemma-7b': 'gemma:7b',
@@ -59,14 +61,24 @@ export async function getOllamaModelStatus(modelId: string): Promise<ModelInfo> 
     }
 
     const data = await listResponse.json()
-    const isInstalled = data.models?.some((model: { name: string }) => {
-      // Only do exact match to prevent false positives
-      return model.name === pullName;
-    })
+    const installedModel = data.models?.find((model: { name: string; size?: number }) => 
+      model.name === pullName
+    )
+
+    if (installedModel) {
+      // Convert size from bytes to GB and format with 2 decimal places
+      const sizeInGB = installedModel.size ? (installedModel.size / (1024 * 1024 * 1024)).toFixed(2) + ' GB' : undefined
+
+      return {
+        name: modelId,
+        status: 'running',
+        size: sizeInGB
+      }
+    }
 
     return {
       name: modelId,
-      status: isInstalled ? 'running' : 'not_installed',
+      status: 'not_installed',
     }
   } catch (error) {
     console.error('Error checking Ollama model status:', error)
