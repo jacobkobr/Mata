@@ -7,17 +7,17 @@ Preview (clone repo and run locally for full features):
 
 ## Features
 
-🖥️ Native Desktop App – Custom title bar, window controls, and system integration
-🎨 Modern UI – Tailwind CSS & shadcn/ui with system-aware dark/light mode
-💬 Enhanced Chat Interface – Markdown, LaTeX support, syntax highlighting, and role-based styling
-🤖 Multiple AI Models – Seamless model switching & management via Ollama
-📁 File Upload Support – Drag-and-drop for text and images with validation & preview
-⚡ Optimized Performance – Lazy loading, memory-efficient storage, and background task handling
-💾 Local Chat History – Secure storage with file-based persistence (JSON/SQLite)
-⌨️ Keyboard Shortcuts – Configurable multi-key combinations for productivity
-🔄 Popout Window Mode – Resizable, draggable chat window for multitasking
-🔒 Privacy-Focused – All processing stays on your machine—no cloud dependencies
-📊 Hardware Monitoring – Real-time CPU, GPU, and memory tracking for optimal resource usage
+- 🖥️ Native Desktop App – Custom title bar, window controls, and system integration
+- 🎨 Modern UI – Tailwind CSS & shadcn/ui with system-aware dark/light mode
+- 💬 Enhanced Chat Interface – Markdown, LaTeX support, syntax highlighting, and role-based styling
+- 🤖 Multiple AI Models – Seamless model switching & management via Ollama
+- 📁 File Upload Support – Drag-and-drop for text and images with validation & preview
+- ⚡ Optimized Performance – Lazy loading, memory-efficient storage, and background task handling
+- 💾 Local Chat History – Secure storage with file-based persistence (JSON/SQLite)
+- ⌨️ Keyboard Shortcuts – Configurable multi-key combinations for productivity
+- 🔄 Popout Window Mode – Resizable, draggable chat window for multitasking
+- 🔒 Privacy-Focused – All processing stays on your machine—no cloud dependencies
+- 📊 Hardware Monitoring – Real-time CPU, GPU, and memory tracking for optimal resource usage
 
 ## Prerequisites
 
