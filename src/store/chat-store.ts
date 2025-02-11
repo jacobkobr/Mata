@@ -248,7 +248,12 @@ export const useChatStore = create<ChatState>()((set, get) => ({
   sendMessage: async (content: string, imageData?: { content: string; type: string }) => {
     try {
       if (!get().currentChatId) {
-        get().startNewChat()
+        // Create new chat and wait for it to complete
+        await new Promise<void>((resolve) => {
+          get().startNewChat()
+          // Wait a short time for the chat to be created and saved
+          setTimeout(resolve, 100)
+        })
       }
 
       const currentChatId = get().currentChatId
@@ -262,11 +267,23 @@ export const useChatStore = create<ChatState>()((set, get) => ({
         chatId: currentChatId
       }
       
-      set((state) => ({
-        messages: [...state.messages, userMessage],
-        isLoading: true,
-        error: null,
-      }))
+      // Add user message and wait for it to be saved
+      await new Promise<void>((resolve) => {
+        set((state) => ({
+          messages: [...state.messages, userMessage],
+          isLoading: true,
+          error: null,
+        }))
+        // Wait for state update
+        setTimeout(resolve, 50)
+      })
+
+      // Save user message to storage
+      await chatService.addMessage({
+        ...userMessage,
+        chatId: currentChatId,
+        role: userMessage.role,
+      })
 
       const settings = useSettingsStore.getState()
       const messages = get().messages
