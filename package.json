@@ -5,7 +5,8 @@
   "main": "electron/main.js",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build && next export",
+    "postbuild": "cp -r .next/static out/_next/",
     "start": "next start",
     "lint": "next lint",
     "electron": "wait-on http://localhost:3000 && electron .",
