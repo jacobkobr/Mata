@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useTheme } from 'next-themes'
 import { ChatMessage } from '@/components/chat-message'
 import { SettingsPanel } from '@/components/settings-panel'
@@ -8,6 +8,7 @@ import { PopoutWindow } from '@/components/popout-window'
 import { ChatSidebar } from '@/components/chat-sidebar'
 import { WelcomeHeader } from '@/components/welcome-header'
 import { FileUpload } from '@/components/file-upload'
+import { CompactChat } from '@/components/compact-chat'
 import { useChatStore } from '@/store/chat-store'
 import { useSettingsStore } from '@/store/settings-store'
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts'
@@ -16,14 +17,33 @@ import { Loader2, Send, Upload } from 'lucide-react'
 export default function Home() {
   const [input, setInput] = useState('')
   const [showFileUpload, setShowFileUpload] = useState(false)
+  const [isCompactMode, setIsCompactMode] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const { messages, isLoading, sendMessage } = useChatStore()
   const { isPopoutMode, updateSettings } = useSettingsStore()
   const { setTheme, theme } = useTheme()
 
+  useEffect(() => {
+    // Check if we're in compact mode
+    const params = new URLSearchParams(window.location.search)
+    setIsCompactMode(params.get('compact') === 'true')
+
+    // Check current window mode
+    if (window.electron) {
+      window.electron.send('get-window-mode').then(setIsCompactMode)
+    }
+  }, [])
+
   useKeyboardShortcuts({
-    toggleWindow: () => updateSettings({ isPopoutMode: !isPopoutMode }),
+    toggleWindow: async () => {
+      if (window.electron) {
+        const isCompact = await window.electron.send('toggle-compact-mode')
+        setIsCompactMode(isCompact)
+      } else {
+        updateSettings({ isPopoutMode: !isPopoutMode })
+      }
+    },
     focusInput: () => inputRef.current?.focus(),
     toggleTheme: () => setTheme(theme === 'dark' ? 'light' : 'dark'),
   })
@@ -52,6 +72,10 @@ export default function Home() {
         type: mimeType || 'image/jpeg'
       })
     }
+  }
+
+  if (isCompactMode) {
+    return <CompactChat />
   }
 
   if (isPopoutMode) {

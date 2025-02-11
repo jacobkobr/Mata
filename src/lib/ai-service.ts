@@ -1,6 +1,8 @@
 import { API_ENDPOINTS } from './config'
 import type { Message } from '@/store/chat-store'
 import { MODEL_PULL_NAMES } from '@/lib/model-service'
+import { useSettingsStore } from '@/store/settings-store'
+import { ragService } from './rag-service'
 
 interface ModelParams {
   temperature: number
@@ -10,6 +12,16 @@ interface ModelParams {
 interface ServiceStatus {
   available: boolean
   error?: string
+}
+
+// Helper function to format debug info
+function formatDebugInfo(info: any): string {
+  return JSON.stringify(info, null, 2)
+    .replace(/[{}"]/g, '')
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean)
+    .join('\n')
 }
 
 export async function checkOllamaStatus(): Promise<ServiceStatus> {
@@ -63,88 +75,177 @@ export async function generateOllamaResponse(
   messages: Message[],
   modelId: string,
   params: ModelParams,
-  imageData?: { content: string; type: string }
+  imageData?: { content: string; type: string },
+  onStream?: (text: string) => void
 ) {
+  const settings = useSettingsStore.getState()
+  const debugMode = settings.advancedSettings.debugMode
+  const debugInfo: string[] = []
+
+  if (debugMode) {
+    debugInfo.push('Debug Mode Active')
+    debugInfo.push(`Model: ${modelId}`)
+    debugInfo.push(`Temperature: ${params.temperature}`)
+    debugInfo.push(`Max Tokens: ${params.maxTokens}`)
+    debugInfo.push(`Context Window: ${settings.advancedSettings.contextWindow}`)
+    debugInfo.push(`Streaming: ${settings.advancedSettings.streamingEnabled}`)
+    if (imageData) {
+      debugInfo.push('Image Input: Yes')
+      debugInfo.push(`Image Type: ${imageData.type}`)
+    }
+  }
+
   const status = await checkOllamaStatus()
   if (!status.available) {
     throw new Error(status.error)
   }
 
   try {
-    const pullName = MODEL_PULL_NAMES[modelId]
-    if (!pullName) {
-      throw new Error(`Unknown model: ${modelId}`)
-    }
-
-    console.log('Generating Ollama response for model:', pullName)
-    
-    let requestBody: any = {
-      model: pullName,
-      stream: false,
-      options: {
-        temperature: params.temperature,
-        num_predict: params.maxTokens,
-      },
-    }
-
-    // Handle image input for vision model
-    if (imageData && pullName === 'llama3.2-vision:11b') {
-      requestBody = {
-        model: pullName,
-        prompt: messages[messages.length - 1].content,
-        images: [imageData.content],
-        stream: false,
-        options: {
-          temperature: params.temperature,
-          num_predict: params.maxTokens,
-        },
-        system: "You are a helpful vision assistant. Analyze the image and provide detailed, accurate descriptions and answers to questions about the image content."
-      }
-    } else {
-      requestBody.prompt = formatMessagesForOllama(messages)
-    }
-
-    console.log('Sending request to Ollama:', {
-      ...requestBody,
-      images: requestBody.images ? [`${requestBody.images[0].slice(0, 50)}...`] : undefined
+    // Get relevant context using RAG
+    const lastMessage = messages[messages.length - 1]
+    const ragResult = await ragService.query(lastMessage.content, {
+      limit: 3,
+      threshold: 0.7,
     })
+
+    // Generate enhanced prompt with context
+    let prompt = lastMessage.content
+    if (ragResult.documents.length > 0) {
+      prompt = await ragService.generatePrompt(lastMessage.content, ragResult.documents)
+    }
+
+    // Format conversation history
+    const formattedMessages = formatMessagesForOllama(messages.slice(0, -1))
+
+    // Combine history with RAG-enhanced prompt
+    const fullPrompt = `${formattedMessages}\n\nHuman: ${prompt}\n\nAssistant:`
 
     const response = await fetch(`${API_ENDPOINTS.ollama}/api/generate`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(requestBody),
+      body: JSON.stringify({
+        model: MODEL_PULL_NAMES[modelId] || modelId,
+        prompt: fullPrompt,
+        stream: true,
+        options: {
+          temperature: params.temperature,
+          num_predict: params.maxTokens,
+        },
+        images: imageData ? [imageData.content] : undefined,
+      }),
     })
 
     if (!response.ok) {
       const error = await response.text()
+      if (debugMode) {
+        debugInfo.push('Error Response:')
+        debugInfo.push(error)
+      }
       console.error('Ollama generation error:', error)
       throw new Error(`Failed to generate response from Ollama: ${error}`)
     }
 
-    const data = await response.json()
-    console.log('Ollama response data:', data)
+    // Handle streaming response
+    const reader = response.body?.getReader()
+    if (!reader) {
+      throw new Error('Failed to get response reader')
+    }
+
+    let fullResponse = ''
+    let responseMetadata = {}
+    let buffer = ''
+    const decoder = new TextDecoder()
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        // Decode the chunk and add to buffer
+        buffer += decoder.decode(value, { stream: true })
+        
+        // Process complete lines from the buffer
+        const lines = buffer.split('\n')
+        // Keep the last potentially incomplete line in the buffer
+        buffer = lines.pop() || ''
+        
+        for (const line of lines) {
+          if (!line.trim()) continue
+          
+          try {
+            const data = JSON.parse(line)
+            if (data.response) {
+              fullResponse += data.response
+              // Call the streaming callback if provided
+              onStream?.(data.response)
+            }
+            if (data.done) {
+              responseMetadata = {
+                totalTokens: data.total_duration,
+                loadDuration: data.load_duration,
+                promptEvalDuration: data.prompt_eval_duration,
+                evalDuration: data.eval_duration
+              }
+            }
+          } catch (e) {
+            console.warn('Failed to parse streaming response line:', line, e)
+          }
+        }
+      }
+
+      // Process any remaining data in the buffer
+      if (buffer.trim()) {
+        try {
+          const data = JSON.parse(buffer)
+          if (data.response) {
+            fullResponse += data.response
+          }
+          if (data.done) {
+            responseMetadata = {
+              totalTokens: data.total_duration,
+              loadDuration: data.load_duration,
+              promptEvalDuration: data.prompt_eval_duration,
+              evalDuration: data.eval_duration
+            }
+          }
+        } catch (e) {
+          console.warn('Failed to parse final buffer:', buffer, e)
+        }
+      }
+
+      // Flush the decoder
+      const remaining = decoder.decode()
+      if (remaining) buffer += remaining
+    } finally {
+      reader.releaseLock()
+    }
+
+    if (debugMode) {
+      debugInfo.push('Response Stats:')
+      debugInfo.push(formatDebugInfo(responseMetadata))
+      console.log('Ollama response data:', responseMetadata)
+    }
     
-    if (!data.response) {
+    if (!fullResponse) {
       throw new Error('Invalid response format from Ollama')
     }
 
     // Clean up the response
-    let cleanResponse = data.response.trim()
+    let cleanResponse = fullResponse.trim()
     
     // Remove any "Assistant:" prefix if present
     cleanResponse = cleanResponse.replace(/^Assistant:\s*/i, '')
     
-    // Add thinking section if not present
-    if (!cleanResponse.includes('<think>')) {
-      const thought = imageData 
+    // Add thinking section with debug info if enabled
+    const thought = debugMode
+      ? `<think>Debug Information:\n${debugInfo.join('\n')}\n\nProcessing your request...</think>\n\n`
+      : imageData 
         ? `<think>Analyzing the provided image and formulating a response based on visual content.</think>\n\n`
         : `<think>Processing your question to provide a direct and accurate answer.</think>\n\n`
-      cleanResponse = thought + cleanResponse
-    }
 
-    return cleanResponse
+    return thought + cleanResponse
   } catch (error) {
     console.error('Error generating Ollama response:', error)
     if (error instanceof Error) {
@@ -192,6 +293,13 @@ export async function generateDeepSeekResponse(
 }
 
 function formatMessagesForOllama(messages: Message[]): string {
+  // Get enabled model knowledge
+  const settings = useSettingsStore.getState();
+  const enabledKnowledge = settings.advancedSettings.modelKnowledge
+    .filter(k => k.enabled)
+    .map(k => k.content)
+    .join('\n');
+
   // Format the conversation history
   const history = messages
     .map((msg) => {
@@ -210,11 +318,14 @@ function formatMessagesForOllama(messages: Message[]): string {
   // Add instructions for the model to show its thinking process
   const systemPrompt = `You are a helpful AI assistant. Be direct and concise in your responses. Stay focused on the user's questions and provide accurate, relevant answers.
 
+${enabledKnowledge ? `Important context about me:\n${enabledKnowledge}\n` : ''}
+
+Before responding, briefly show your thinking process inside <think></think> tags.
+
 For example:
 Human: What's 2+2?
-Assistant: 4
-
-Before responding, briefly show your thinking process inside <think></think> tags.`
+Assistant: <think>This is a basic arithmetic question. The sum of 2 and 2 is 4.</think>
+4`
 
   // Add a clear separator and prompt for the assistant's response
   return `${systemPrompt}\n\n${history}\n\nAssistant:`

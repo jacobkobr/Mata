@@ -3,10 +3,12 @@ import { generateOllamaResponse, generateDeepSeekResponse } from '@/lib/ai-servi
 import { AI_MODELS } from '@/lib/config'
 import { useSettingsStore } from './settings-store'
 import * as chatService from '@/lib/chat-service'
-import type { DBChat, DBMessage } from '@/lib/db-service'
+import type { DBChat, DBMessage } from '@/lib/types'
+import { indexMessage, clearChatIndex, clearAllIndices, searchMessages } from '@/lib/indexing-service'
 
 export interface Message {
   id: string
+  chatId: string
   role: 'user' | 'assistant' | 'error'
   content: string
   timestamp: number
@@ -28,6 +30,7 @@ interface ChatState {
   messages: Message[]
   isLoading: boolean
   error: string | null
+  searchResults: { message: Message; score: number }[]
   loadChats: () => Promise<void>
   addMessage: (message: Omit<Message, 'id' | 'timestamp'>) => void
   sendMessage: (content: string, imageData?: { content: string; type: string }) => Promise<void>
@@ -38,6 +41,7 @@ interface ChatState {
   deleteChat: (chatId: string) => void
   updateChatTitle: (chatId: string, title: string) => void
   clearAllChats: () => Promise<void>
+  searchChatHistory: (query: string) => void
 }
 
 const INSTALLATION_INSTRUCTIONS: Record<string, string> = {
@@ -69,6 +73,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
   messages: [],
   isLoading: false,
   error: null,
+  searchResults: [],
 
   loadChats: async () => {
     try {
@@ -77,9 +82,14 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       
       for (const chat of chats) {
         const dbMessages = await chatService.getChatMessages(chat.id)
+        const messages = dbMessages.map(convertDBMessageToMessage)
         chatHistories[chat.id] = {
           ...chat,
-          messages: dbMessages.map(convertDBMessageToMessage),
+          messages,
+        }
+        // Index all messages
+        for (const message of dbMessages) {
+          await indexMessage(message)
         }
       }
 
@@ -132,6 +142,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
   deleteChat: async (chatId: string) => {
     try {
       await chatService.deleteChat(chatId)
+      clearChatIndex(chatId)
       
       set((state) => {
         const { [chatId]: _, ...remainingChats } = state.chatHistories
@@ -192,6 +203,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
           role: newMessage.role,
         }
         await chatService.addMessage(dbMessage)
+        await indexMessage(dbMessage)
       }
 
       set((state) => {
@@ -239,11 +251,15 @@ export const useChatStore = create<ChatState>()((set, get) => ({
         get().startNewChat()
       }
 
+      const currentChatId = get().currentChatId
+      if (!currentChatId) return
+
       const userMessage: Message = {
         role: 'user',
         content,
         id: Math.random().toString(36).substring(7),
         timestamp: Date.now(),
+        chatId: currentChatId
       }
       
       set((state) => ({
@@ -265,6 +281,20 @@ export const useChatStore = create<ChatState>()((set, get) => ({
         // If image data is provided, use the vision model
         const modelId = imageData ? 'llama-vision' : settings.selectedModel
 
+        // Create a temporary message for streaming
+        const assistantMessage: Message = {
+          role: 'assistant',
+          content: '',
+          id: Math.random().toString(36).substring(7),
+          timestamp: Date.now(),
+          chatId: currentChatId
+        }
+
+        // Add the empty message to the state
+        set((state) => ({
+          messages: [...state.messages, assistantMessage],
+        }))
+
         if (modelConfig.provider === 'ollama') {
           response = await generateOllamaResponse(
             messages,
@@ -273,7 +303,17 @@ export const useChatStore = create<ChatState>()((set, get) => ({
               temperature: settings.temperature,
               maxTokens: settings.maxTokens,
             },
-            imageData
+            imageData,
+            // Streaming callback
+            (text: string) => {
+              set((state) => ({
+                messages: state.messages.map(msg =>
+                  msg.id === assistantMessage.id
+                    ? { ...msg, content: msg.content + text }
+                    : msg
+                ),
+              }))
+            }
           )
         } else if (modelConfig.provider === 'deepseek') {
           response = await generateDeepSeekResponse(messages, {
@@ -284,21 +324,39 @@ export const useChatStore = create<ChatState>()((set, get) => ({
           throw new Error('Unsupported model provider')
         }
 
-        get().addMessage({
-          role: 'assistant',
+        // Update the final message
+        set((state) => ({
+          messages: state.messages.map(msg =>
+            msg.id === assistantMessage.id
+              ? { ...msg, content: response }
+              : msg
+          ),
+        }))
+
+        // Save the final message to the database
+        const finalMessage = {
+          role: 'assistant' as const,
           content: response,
-        })
+          chatId: currentChatId,
+          id: assistantMessage.id,
+          timestamp: assistantMessage.timestamp,
+          modelId: settings.selectedModel,
+        }
+        await chatService.addMessage(finalMessage)
+        await indexMessage(finalMessage)
       } catch (error) {
         if (error instanceof Error && error.message.includes('Could not connect')) {
           const provider = settings.selectedModel.includes('deepseek') ? 'deepseek' : 'ollama'
           get().addMessage({
             role: 'error',
             content: INSTALLATION_INSTRUCTIONS[provider] || error.message,
+            chatId: currentChatId
           })
         } else {
           get().addMessage({
             role: 'error',
             content: error instanceof Error ? error.message : 'An error occurred while processing your request.',
+            chatId: currentChatId
           })
         }
         throw error
@@ -338,6 +396,9 @@ export const useChatStore = create<ChatState>()((set, get) => ({
         await chatService.deleteChat(chatId)
       }
 
+      // Clear the index
+      clearAllIndices()
+
       // Clear the store state
       set({
         chatHistories: {},
@@ -348,5 +409,10 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     } catch (error) {
       console.error('Failed to clear chat history:', error)
     }
+  },
+
+  searchChatHistory: (query: string) => {
+    const results = searchMessages(query)
+    set({ searchResults: results })
   },
 })) 

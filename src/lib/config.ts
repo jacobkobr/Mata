@@ -1,4 +1,4 @@
-export type ModelSize = '0.5b' | '1.5b' | '2b' | '3b' | '4b' | '7b' | '8b' | '11b' | '13b' | '14b' | '32b'
+export type ModelSize = '0.5b' | '1.5b' | '2b' | '3b' | '4b' | '7b' | '8b' | '11b' | '12b' | '13b' | '14b' | '32b'
 
 export interface AIModel {
   id: string
@@ -175,6 +175,15 @@ export const AI_MODELS: AIModel[] = [
     description: 'Larger model with improved capabilities, good balance of performance and resources.',
     capabilities: ['Advanced Reasoning', 'Code Generation', 'Text Generation'],
   },
+  {
+    id: 'mistral-nemo',
+    name: 'Mistral Nemo 12B',
+    provider: 'ollama',
+    family: MODEL_FAMILIES.MISTRAL,
+    size: '12b',
+    description: 'Mistral\'s Nemo model optimized for coding and technical tasks.',
+    capabilities: ['Code Generation', 'Technical Q&A', 'Advanced Reasoning'],
+  },
 ] as const
 
 export const DEFAULT_MODEL = 'deepseek-7b'
@@ -186,7 +195,7 @@ export const API_ENDPOINTS = {
 
 export const KEYBOARD_SHORTCUTS = {
   toggleWindow: 'ctrl+shift+m',
-  newChat: 'ctrl+n',
+  newChat: 'ctrl+e',
   focusInput: '/',
   toggleTheme: 'ctrl+shift+l',
 } as const
@@ -195,4 +204,8 @@ export const LOCAL_STORAGE_KEYS = {
   chatHistory: 'mata:chatHistory',
   settings: 'mata:settings',
   theme: 'mata:theme',
-} as const 
+} as const
+
+export const MODEL_PULL_NAMES: Record<string, string> = {
+  'mistral-nemo': 'mistral-nemo:latest',
+} 

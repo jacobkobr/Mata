@@ -6,16 +6,7 @@ import Image from 'next/image';
 import { ThemeToggle } from './theme-toggle';
 import { SettingsPanel } from './settings-panel';
 import { cn } from '@/lib/utils';
-
-declare global {
-  interface Window {
-    electron: {
-      send: (channel: string) => Promise<boolean>;
-      receive: (channel: string, func: (...args: any[]) => void) => void;
-      removeListener: (channel: string, func: (...args: any[]) => void) => void;
-    };
-  }
-}
+import '@/lib/electron-types';
 
 export function TitleBar() {
   const [isMaximized, setIsMaximized] = useState(false);
@@ -65,6 +56,7 @@ export function TitleBar() {
             height={16}
             className="dark:invert"
             priority
+            unoptimized
           />
         </div>
         <span className="text-sm font-medium">Mata AI</span>
