@@ -2,7 +2,6 @@ import { API_ENDPOINTS } from './config'
 import type { Message } from '@/store/chat-store'
 import { MODEL_PULL_NAMES } from '@/lib/model-service'
 import { useSettingsStore } from '@/store/settings-store'
-import { ragService } from './rag-service'
 
 interface ModelParams {
   temperature: number
@@ -101,24 +100,9 @@ export async function generateOllamaResponse(
   }
 
   try {
-    // Get relevant context using RAG
-    const lastMessage = messages[messages.length - 1]
-    const ragResult = await ragService.query(lastMessage.content, {
-      limit: 3,
-      threshold: 0.7,
-    })
-
-    // Generate enhanced prompt with context
-    let prompt = lastMessage.content
-    if (ragResult.documents.length > 0) {
-      prompt = await ragService.generatePrompt(lastMessage.content, ragResult.documents)
-    }
-
     // Format conversation history
-    const formattedMessages = formatMessagesForOllama(messages.slice(0, -1))
-
-    // Combine history with RAG-enhanced prompt
-    const fullPrompt = `${formattedMessages}\n\nHuman: ${prompt}\n\nAssistant:`
+    const formattedMessages = formatMessagesForOllama(messages)
+    const fullPrompt = formattedMessages
 
     const response = await fetch(`${API_ENDPOINTS.ollama}/api/generate`, {
       method: 'POST',

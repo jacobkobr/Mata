@@ -38,15 +38,16 @@ export function CompactChat() {
 
   return (
     <div className={cn(
-      "flex flex-col transition-all duration-300 ease-in-out rounded-lg overflow-hidden bg-background/80 backdrop-blur-sm border border-border shadow-lg",
-      isExpanded ? "h-[500px]" : "h-[50px]"
+      "flex flex-col transition-all duration-300 ease-in-out rounded-lg overflow-hidden bg-background/95 backdrop-blur-md border border-border shadow-2xl",
+      isExpanded ? "h-[500px]" : "h-[60px]"
     )}>
       {/* Title Bar */}
-      <div className="h-[50px] flex items-center justify-between px-4 bg-card/50 border-b border-border">
-        <span className="text-sm font-medium">Mata AI</span>
+      <div className="h-[60px] flex items-center justify-between px-4 bg-card/80 border-b border-border shrink-0">
+        <span className="text-sm font-semibold">Mata AI - Compact Mode</span>
         <button
           onClick={handleClose}
-          className="p-1 hover:bg-accent rounded-md"
+          className="p-1.5 hover:bg-accent rounded-md transition-colors"
+          title="Close compact mode (Ctrl+Shift+M)"
         >
           <X className="h-4 w-4" />
         </button>
@@ -54,16 +55,24 @@ export function CompactChat() {
 
       {/* Messages */}
       {isExpanded && (
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {messages.map((message) => (
-            <ChatMessage key={message.id} message={message} isCompact />
-          ))}
-          {isLoading && (
-            <div className="flex items-center justify-center py-2">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
+          {messages.length === 0 ? (
+            <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+              Start a conversation...
             </div>
+          ) : (
+            <>
+              {messages.map((message) => (
+                <ChatMessage key={message.id} message={message} isCompact />
+              ))}
+              {isLoading && (
+                <div className="flex items-center justify-center py-2">
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </>
           )}
-          <div ref={messagesEndRef} />
         </div>
       )}
 

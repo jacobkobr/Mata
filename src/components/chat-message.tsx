@@ -70,6 +70,7 @@ export function ChatMessage({ message, isCompact = false }: ChatMessageProps) {
     <div className={cn(
       "py-6 px-4 flex gap-4",
       message.role === 'assistant' ? 'bg-muted/50' : 'bg-background',
+      isError && 'bg-destructive/5 border-l-2 border-destructive',
       isCompact && 'py-3 px-3'
     )}>
       {/* Avatar */}
@@ -77,7 +78,11 @@ export function ChatMessage({ message, isCompact = false }: ChatMessageProps) {
         "rounded-full overflow-hidden flex-shrink-0",
         isCompact ? "w-6 h-6" : "w-8 h-8"
       )}>
-        {message.role === 'assistant' ? (
+        {isError ? (
+          <div className="w-full h-full bg-destructive flex items-center justify-center text-destructive-foreground">
+            <AlertCircle className={cn("w-5 h-5", isCompact && "w-4 h-4")} />
+          </div>
+        ) : message.role === 'assistant' ? (
           <div className="w-full h-full bg-primary flex items-center justify-center text-primary-foreground">
             <Bot className={cn("w-5 h-5", isCompact && "w-4 h-4")} />
           </div>
@@ -91,13 +96,12 @@ export function ChatMessage({ message, isCompact = false }: ChatMessageProps) {
       {/* Message Content */}
       <div className="flex-1 space-y-4">
         <div className="flex items-center gap-2">
-          {isError && <AlertCircle className={cn("text-destructive", isCompact ? "h-3 w-3" : "h-4 w-4")} />}
           <span className={cn(
             'font-medium',
             isError && 'text-destructive',
             isCompact ? 'text-xs' : 'text-sm'
           )}>
-            {isUser ? 'You' : isError ? 'System Message' : 'Assistant'}
+            {isUser ? 'You' : isError ? 'Error' : 'Assistant'}
           </span>
           <span className={cn(
             "text-muted-foreground",

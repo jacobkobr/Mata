@@ -38,11 +38,11 @@ export function WelcomeHeader() {
   return (
     <div className="relative">
       {/* Gradient Background */}
-      <div className="absolute inset-0 bg-gradient-to-r from-purple-600/20 via-blue-500/20 to-cyan-400/20 dark:from-purple-900/30 dark:via-blue-800/30 dark:to-cyan-700/30 blur-3xl" />
-      
+      <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 via-cyan-500/20 to-emerald-400/20 dark:from-blue-900/30 dark:via-cyan-800/30 dark:to-emerald-700/30 blur-3xl" />
+
       {/* Content */}
       <div className="relative px-6 py-12 text-center">
-        <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-purple-600 to-cyan-500 dark:from-purple-400 dark:to-cyan-300 bg-clip-text text-transparent">
+        <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-blue-600 to-cyan-500 dark:from-blue-400 dark:to-cyan-300 bg-clip-text text-transparent">
           Welcome to Mata
         </h1>
         <p className="text-lg text-muted-foreground mb-8">

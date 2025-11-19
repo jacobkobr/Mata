@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { X, AlertCircle, Loader2, Check, Download, Trash2, ChevronRight } from 'lucide-react'
+import { X, AlertCircle, Loader2, Check, Download, Trash2, ChevronRight, ExternalLink } from 'lucide-react'
 import { AI_MODELS, MODEL_FAMILIES } from '@/lib/config'
 import { cn } from '@/lib/utils'
 import { getOllamaModelStatus, installOllamaModel, deleteOllamaModel, type ModelInfo } from '@/lib/model-service'
@@ -80,7 +80,18 @@ export function ExploreModels({ isOpen, onClose }: ExploreModelsProps) {
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-          <h2 className="text-lg font-semibold">Explore Models</h2>
+          <div className="flex items-center gap-4">
+            <h2 className="text-lg font-semibold">Explore Models</h2>
+            <a
+              href="https://ollama.com/library"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 px-3 py-1.5 text-sm bg-primary/10 text-primary rounded-md hover:bg-primary/20 transition-colors"
+            >
+              <ExternalLink className="h-4 w-4" />
+              <span>Browse All Models</span>
+            </a>
+          </div>
           <button
             onClick={onClose}
             className="p-2 rounded-md hover:bg-accent"
@@ -98,6 +109,23 @@ export function ExploreModels({ isOpen, onClose }: ExploreModelsProps) {
             </div>
           ) : (
             <div className="space-y-6">
+              {/* Info Banner */}
+              <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg">
+                <p className="text-sm text-muted-foreground">
+                  <strong className="text-foreground">Looking for more models?</strong> Visit the{' '}
+                  <a
+                    href="https://ollama.com/library"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline"
+                  >
+                    Ollama Library
+                  </a>
+                  {' '}to browse hundreds of models. Install any model using:{' '}
+                  <code className="px-2 py-1 bg-muted rounded text-xs">ollama pull model-name</code>
+                </p>
+              </div>
+
               {Object.values(MODEL_FAMILIES).map((family) => {
                 const familyModels = AI_MODELS.filter(m => m.family === family)
                 if (familyModels.length === 0) return null

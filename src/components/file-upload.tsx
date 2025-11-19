@@ -33,27 +33,38 @@ export function FileUpload({ onFileContent, className }: FileUploadProps) {
         // Handle image file
         const reader = new FileReader()
         reader.onload = async (e) => {
-          const base64 = e.target?.result as string
-          // Remove the data URL prefix and only send the base64 data
-          const base64Data = base64.split(',')[1]
-          
-          // Create an image element to check dimensions
-          const img = new Image()
-          img.src = base64
-          await new Promise((resolve) => {
-            img.onload = resolve
-          })
+          try {
+            const base64 = e.target?.result as string
+            // Remove the data URL prefix and only send the base64 data
+            const base64Data = base64.split(',')[1]
 
-          // Check image dimensions
-          if (img.width * img.height > 4096 * 4096) {
-            throw new Error('Image dimensions too large. Maximum size is 4096x4096 pixels.')
+            // Create an image element to check dimensions
+            const img = new Image()
+            img.src = base64
+            await new Promise((resolve, reject) => {
+              img.onload = resolve
+              img.onerror = reject
+            })
+
+            // Check image dimensions
+            if (img.width * img.height > 4096 * 4096) {
+              throw new Error('Image dimensions too large. Maximum size is 4096x4096 pixels.')
+            }
+
+            setFileContent({
+              content: base64Data,
+              type: 'image',
+              mimeType: file.type
+            })
+            setIsLoading(false)
+          } catch (err) {
+            setIsLoading(false)
+            throw err
           }
-
-          setFileContent({
-            content: base64Data,
-            type: 'image',
-            mimeType: file.type
-          })
+        }
+        reader.onerror = () => {
+          setIsLoading(false)
+          throw new Error('Failed to read image file')
         }
         reader.readAsDataURL(file)
       } else {
@@ -63,12 +74,12 @@ export function FileUpload({ onFileContent, className }: FileUploadProps) {
           content: text,
           type: 'text'
         })
+        setIsLoading(false)
       }
     } catch (error) {
       console.error('Error reading file:', error)
       alert(error instanceof Error ? error.message : 'Failed to process file')
       clearFile()
-    } finally {
       setIsLoading(false)
     }
   }
@@ -172,7 +183,17 @@ export function FileUpload({ onFileContent, className }: FileUploadProps) {
         </div>
 
         {fileContent && (
-          <div className="flex justify-end">
+          <div className="flex justify-between items-center">
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                clearFile()
+              }}
+              className="px-4 py-2 bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 flex items-center gap-2"
+            >
+              <X className="h-4 w-4" />
+              <span>Cancel</span>
+            </button>
             <button
               onClick={handleSubmit}
               className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:opacity-90 flex items-center gap-2"
