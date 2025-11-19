@@ -64,10 +64,11 @@ export default function Home() {
   const handleFileContent = async (content: string, type: 'text' | 'image', mimeType?: string) => {
     setShowFileUpload(false)
     if (type === 'text') {
-      await sendMessage(`Please review this file content:\n\n\`\`\`\n${content}\n\`\`\``)
+      // Send text content
+      await sendMessage(`Please review this file content:\n\n${content}`)
     } else if (type === 'image') {
-      // For images, we'll use the vision model
-      await sendMessage('Please analyze this image:', {
+      // For images, we'll use the vision model with the base64 content
+      await sendMessage('Please analyze this image.', {
         content,
         type: mimeType || 'image/jpeg'
       })
@@ -122,8 +123,10 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => setShowFileUpload(!showFileUpload)}
-                className="p-3 rounded-lg hover:bg-accent flex items-center justify-center h-[50px]"
-                title="Upload file"
+                className={`p-3 rounded-lg hover:bg-accent flex items-center justify-center h-[50px] transition-colors ${
+                  showFileUpload ? 'bg-accent' : ''
+                }`}
+                title="Upload file or image"
               >
                 <Upload className="h-5 w-5" />
               </button>
@@ -148,7 +151,7 @@ export default function Home() {
 
               <button
                 type="submit"
-                disabled={isLoading}
+                disabled={isLoading || !input.trim()}
                 className="px-4 h-[50px] bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-2"
               >
                 {isLoading ? (
