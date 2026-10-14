@@ -1,9 +1,13 @@
 import { useState, useEffect } from 'react'
-import { createPortal } from 'react-dom'
-import { X, AlertCircle, Loader2, Check, Download, Trash2, ChevronRight } from 'lucide-react'
+import { Loader2, Download, Trash2, ExternalLink } from 'lucide-react'
 import { AI_MODELS, MODEL_FAMILIES } from '@/lib/config'
-import { cn } from '@/lib/utils'
-import { getOllamaModelStatus, installOllamaModel, deleteOllamaModel, type ModelInfo } from '@/lib/model-service'
+import { getOllamaModelStatus, installOllamaModel, installOllamaModelByName, deleteOllamaModel, type ModelInfo } from '@/lib/model-service'
+import { Modal, ModalContent, ModalHeader, ModalTitle } from '@/components/ui/modal'
+import { ModelCard } from '@/components/models/model-card'
+import { ModelFamilyGroup } from '@/components/models/model-family-group'
+import { ProgressBar } from '@/components/ui/progress-bar'
+import { Button } from '@/components/ui/button'
+import { toast } from '@/components/ui/use-toast'
 
 interface ExploreModelsProps {
   isOpen: boolean
@@ -14,6 +18,8 @@ export function ExploreModels({ isOpen, onClose }: ExploreModelsProps) {
   const [modelStatuses, setModelStatuses] = useState<Record<string, ModelInfo>>({})
   const [expandedFamilies, setExpandedFamilies] = useState<Record<string, boolean>>({})
   const [isLoading, setIsLoading] = useState(true)
+  const [customPullName, setCustomPullName] = useState('')
+  const [customPulls, setCustomPulls] = useState<Record<string, ModelInfo>>({})
 
   useEffect(() => {
     if (isOpen) {
@@ -24,12 +30,12 @@ export function ExploreModels({ isOpen, onClose }: ExploreModelsProps) {
   const checkModelStatuses = async () => {
     setIsLoading(true)
     const statuses: Record<string, ModelInfo> = {}
-    
+
     for (const model of AI_MODELS) {
       const status = await getOllamaModelStatus(model.id)
       statuses[model.id] = status
     }
-    
+
     setModelStatuses(statuses)
     setIsLoading(false)
   }
@@ -60,6 +66,22 @@ export function ExploreModels({ isOpen, onClose }: ExploreModelsProps) {
     }
   }
 
+  const handleCustomPull = async () => {
+    const name = customPullName.trim()
+    if (!name) return
+    setCustomPullName('')
+    setCustomPulls(prev => ({ ...prev, [name]: { name, status: 'not_installed', progress: 0 } }))
+
+    const result = await installOllamaModelByName(name, (progress) => {
+      setCustomPulls(prev => ({ ...prev, [name]: { ...prev[name], progress } }))
+    })
+
+    setCustomPulls(prev => ({ ...prev, [name]: result }))
+    if (result.status === 'error') {
+      toast({ variant: 'destructive', title: `Could not install "${name}"`, description: result.error })
+    }
+  }
+
   const toggleFamily = (family: string) => {
     setExpandedFamilies(prev => ({
       ...prev,
@@ -67,30 +89,56 @@ export function ExploreModels({ isOpen, onClose }: ExploreModelsProps) {
     }))
   }
 
-  if (!isOpen) return null
+  return (
+    <Modal open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <ModalContent className="flex h-[600px] w-[800px] max-w-[90vw] flex-col p-0">
+        <ModalHeader>
+          <ModalTitle className="text-lg">Explore Models</ModalTitle>
+        </ModalHeader>
 
-  return createPortal(
-    <div 
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-background/80 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div 
-        className="w-[800px] h-[600px] bg-card shadow-lg rounded-lg border border-border flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-          <h2 className="text-lg font-semibold">Explore Models</h2>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-md hover:bg-accent"
-            aria-label="Close"
-          >
-            <X className="h-5 w-5" />
-          </button>
+        <div className="border-b border-border p-4">
+          <label className="text-sm font-medium">Install any Ollama model</label>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Not limited to the catalog below — pull any tag from{' '}
+            <a href="https://ollama.com/library" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 text-primary hover:underline">
+              ollama.com/library <ExternalLink className="h-3 w-3" />
+            </a>
+            , e.g. <code className="rounded bg-muted px-1 py-0.5">qwen2.5-coder:32b</code>
+          </p>
+          <div className="mt-2 flex gap-2">
+            <input
+              type="text"
+              value={customPullName}
+              onChange={(e) => setCustomPullName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleCustomPull()}
+              placeholder="model:tag"
+              className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+            <Button onClick={handleCustomPull} disabled={!customPullName.trim()}>
+              <Download className="h-4 w-4" />
+              Pull
+            </Button>
+          </div>
+          {Object.values(customPulls).length > 0 && (
+            <div className="mt-3 space-y-2">
+              {Object.values(customPulls).map((pull) => (
+                <div key={pull.name} className="rounded-md border border-border p-2.5 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">{pull.name}</span>
+                    {pull.status === 'running' && <span className="text-xs text-success">Installed</span>}
+                    {pull.status === 'error' && <span className="text-xs text-destructive">{pull.error}</span>}
+                  </div>
+                  {typeof pull.progress === 'number' && pull.status !== 'running' && (
+                    <div className="mt-1.5">
+                      <ProgressBar value={pull.progress} label={`Installing ${pull.name}`} />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* Content */}
         <div className="flex-1 overflow-y-auto p-6">
           {isLoading ? (
             <div className="flex items-center justify-center h-full">
@@ -103,108 +151,54 @@ export function ExploreModels({ isOpen, onClose }: ExploreModelsProps) {
                 if (familyModels.length === 0) return null
 
                 return (
-                  <div key={family} className="space-y-2">
-                    <button
-                      onClick={() => toggleFamily(family)}
-                      className="flex items-center gap-2 text-lg font-medium"
-                    >
-                      <ChevronRight
-                        className={cn(
-                          "h-5 w-5 transition-transform",
-                          expandedFamilies[family] && "rotate-90"
-                        )}
-                      />
-                      {family}
-                    </button>
+                  <ModelFamilyGroup
+                    key={family}
+                    family={family}
+                    count={familyModels.length}
+                    expanded={!!expandedFamilies[family]}
+                    onToggle={() => toggleFamily(family)}
+                  >
+                    {familyModels.map((model) => {
+                      const status = modelStatuses[model.id]
+                      const isInstalled = status?.status === 'running'
+                      const isInstalling = status?.progress !== undefined
 
-                    {expandedFamilies[family] && (
-                      <div className="grid grid-cols-1 gap-4 pl-6">
-                        {familyModels.map((model) => {
-                          const status = modelStatuses[model.id]
-                          const isInstalled = status?.status === 'running'
-                          const isInstalling = status?.progress !== undefined
-                          const hasError = status?.status === 'error'
-
-                          return (
-                            <div
-                              key={model.id}
-                              className="flex flex-col gap-2 p-4 rounded-lg border border-border bg-card/50"
-                            >
-                              <div className="flex items-start justify-between">
-                                <div>
-                                  <h3 className="font-medium">{model.name}</h3>
-                                  <p className="text-sm text-muted-foreground">{model.description}</p>
-                                </div>
-                                {isInstalled ? (
-                                  <button
-                                    onClick={() => handleDelete(model.id)}
-                                    className="p-2 text-destructive hover:bg-destructive/10 rounded-md"
-                                    title="Delete model"
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </button>
-                                ) : (
-                                  <button
-                                    onClick={() => handleInstall(model.id)}
-                                    disabled={isInstalling}
-                                    className="p-2 text-primary hover:bg-primary/10 rounded-md disabled:opacity-50"
-                                    title="Install model"
-                                  >
-                                    <Download className="h-4 w-4" />
-                                  </button>
-                                )}
-                              </div>
-
-                              <div className="flex flex-wrap gap-2">
-                                {model.capabilities.map((capability) => (
-                                  <span
-                                    key={capability}
-                                    className="px-2 py-1 text-xs rounded-full bg-secondary text-secondary-foreground"
-                                  >
-                                    {capability}
-                                  </span>
-                                ))}
-                              </div>
-
-                              {status?.size && (
-                                <div className="text-xs text-muted-foreground">
-                                  Size on disk: {status.size}
-                                </div>
-                              )}
-
-                              {isInstalling && (
-                                <div className="mt-2">
-                                  <div className="h-1 bg-secondary rounded-full overflow-hidden">
-                                    <div
-                                      className="h-full bg-primary transition-all duration-300"
-                                      style={{ width: `${status.progress}%` }}
-                                    />
-                                  </div>
-                                  <div className="text-xs text-muted-foreground mt-1">
-                                    Installing... {status.progress}%
-                                  </div>
-                                </div>
-                              )}
-
-                              {hasError && (
-                                <div className="flex items-center gap-2 text-xs text-destructive mt-2">
-                                  <AlertCircle className="h-3 w-3" />
-                                  <span>{status.error}</span>
-                                </div>
-                              )}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </div>
+                      return (
+                        <ModelCard
+                          key={model.id}
+                          model={model}
+                          status={status}
+                          progress={status?.progress}
+                          actions={
+                            isInstalled ? (
+                              <button
+                                onClick={() => handleDelete(model.id)}
+                                className="p-2 text-destructive hover:bg-destructive/10 rounded-md"
+                                title="Delete model"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => handleInstall(model.id)}
+                                disabled={isInstalling}
+                                className="p-2 text-primary hover:bg-primary/10 rounded-md disabled:opacity-50"
+                                title="Install model"
+                              >
+                                <Download className="h-4 w-4" />
+                              </button>
+                            )
+                          }
+                        />
+                      )
+                    })}
+                  </ModelFamilyGroup>
                 )
               })}
             </div>
           )}
         </div>
-      </div>
-    </div>,
-    document.body
+      </ModalContent>
+    </Modal>
   )
-} 
+}

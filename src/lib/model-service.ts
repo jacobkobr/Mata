@@ -1,4 +1,7 @@
 import { API_ENDPOINTS } from './config'
+import { MODEL_PULL_NAMES } from '@mata/provider-core'
+
+export { MODEL_PULL_NAMES }
 
 export interface ModelInfo {
   name: string
@@ -6,28 +9,9 @@ export interface ModelInfo {
   error?: string
   progress?: number
   size?: string  // Size in GB
-}
-
-// Add model name mapping for Ollama
-export const MODEL_PULL_NAMES: Record<string, string> = {
-  'llama2-7b': 'llama2:7b',
-  'llama2-13b': 'llama2:13b',
-  'codellama-7b': 'codellama:7b',
-  'codellama-13b': 'codellama:13b',
-  'llama-vision': 'llama3.2-vision:11b',
-  'deepseek-1.5b': 'deepseek-r1:1.5b',
-  'deepseek-7b': 'deepseek-r1:7b',
-  'deepseek-8b': 'deepseek-r1:8b',
-  'deepseek-14b': 'deepseek-r1:14b',
-  'deepseek-32b': 'deepseek-r1:32b',
-  'mistral-7b': 'mistral:latest',
-  'mistral-nemo': 'mistral-nemo:latest',
-  'phi-2': 'phi:latest',
-  'gemma-2b': 'gemma:2b',
-  'gemma-7b': 'gemma:7b',
-  'qwen-1.5b': 'qwen:1.5b',
-  'qwen-7b': 'qwen:7b',
-  'qwen-14b': 'qwen:14b',
+  parameterSize?: string
+  quantization?: string
+  family?: string
 }
 
 export async function getOllamaModelStatus(modelId: string): Promise<ModelInfo> {
@@ -61,7 +45,7 @@ export async function getOllamaModelStatus(modelId: string): Promise<ModelInfo> 
     }
 
     const data = await listResponse.json()
-    const installedModel = data.models?.find((model: { name: string; size?: number }) => 
+    const installedModel = data.models?.find((model: { name: string; size?: number; details?: Record<string, string> }) =>
       model.name === pullName
     )
 
@@ -72,7 +56,10 @@ export async function getOllamaModelStatus(modelId: string): Promise<ModelInfo> 
       return {
         name: modelId,
         status: 'running',
-        size: sizeInGB
+        size: sizeInGB,
+        parameterSize: installedModel.details?.parameter_size || undefined,
+        quantization: installedModel.details?.quantization_level || undefined,
+        family: installedModel.details?.family || undefined,
       }
     }
 
@@ -94,13 +81,36 @@ export async function installOllamaModel(
   modelId: string,
   onProgress?: (progress: number) => void
 ): Promise<ModelInfo> {
-  try {
-    const pullName = MODEL_PULL_NAMES[modelId]
-    if (!pullName) {
-      throw new Error(`Unknown model: ${modelId}`)
+  const pullName = MODEL_PULL_NAMES[modelId]
+  if (!pullName) {
+    return {
+      name: modelId,
+      status: 'error',
+      error: `Unknown model: ${modelId}`,
     }
+  }
+  return pullModel(modelId, pullName, onProgress)
+}
 
-    console.log(`Installing model ${modelId} using pull name ${pullName}...`)
+/**
+ * Installs any model tag Ollama's library has, bypassing Mata's own curated
+ * catalog entirely — the catalog can only ever cover a fraction of what
+ * Ollama actually hosts, so this is the real "full access" path.
+ */
+export async function installOllamaModelByName(
+  pullName: string,
+  onProgress?: (progress: number) => void
+): Promise<ModelInfo> {
+  return pullModel(pullName, pullName, onProgress)
+}
+
+async function pullModel(
+  displayName: string,
+  pullName: string,
+  onProgress?: (progress: number) => void
+): Promise<ModelInfo> {
+  try {
+    console.log(`Installing model ${displayName} using pull name ${pullName}...`)
     const response = await fetch(`${API_ENDPOINTS.ollama}/api/pull`, {
       method: 'POST',
       headers: {
@@ -159,17 +169,17 @@ export async function installOllamaModel(
     }
 
     return {
-      name: modelId,
+      name: displayName,
       status: 'running',
       progress: 100,
     }
   } catch (error) {
     console.error('Error installing model:', error)
     return {
-      name: modelId,
+      name: displayName,
       status: 'error',
-      error: error instanceof Error 
-        ? `Installation failed: ${error.message}. Try running "ollama pull ${MODEL_PULL_NAMES[modelId]}" manually.`
+      error: error instanceof Error
+        ? `Installation failed: ${error.message}. Try running "ollama pull ${pullName}" manually.`
         : 'Failed to install model',
     }
   }
@@ -250,27 +260,4 @@ export async function startOllamaModel(modelId: string): Promise<ModelInfo> {
     }
   }
 }
-
-export async function getDeepSeekStatus(): Promise<ModelInfo> {
-  try {
-    const response = await fetch(`${API_ENDPOINTS.deepseek}/health`)
-    if (!response.ok) {
-      return {
-        name: 'deepseek-coder',
-        status: 'error',
-        error: 'DeepSeek service is not running',
-      }
-    }
-
-    return {
-      name: 'deepseek-coder',
-      status: 'running',
-    }
-  } catch (error) {
-    return {
-      name: 'deepseek-coder',
-      status: 'error',
-      error: 'Could not connect to DeepSeek service',
-    }
-  }
-} 
+ 
