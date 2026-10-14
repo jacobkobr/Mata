@@ -1,85 +1,50 @@
 # Mata
 
-A modern desktop chat application built with Electron and Next.js, designed to work with local AI models through Ollama. Mata provides a sleek, native-feeling interface for interacting with various AI models while keeping all data and processing local.
+Desktop chat app for Ollama, built mostly so I'd have a decent local UI for the models I run at home instead of using the terminal. It also supports Sign in with ChatGPT now, so if you've got a Plus or Pro subscription you can use that instead of paying for API credits separately. Chat history is just flat JSON on disk, so nothing leaves your machine unless you're actually talking to ChatGPT.
 
-Preview (clone repo and run locally for full features):
-[Mata](https://mataai.netlify.app/)
+![Mata](screenshots/screenshot1.png)
 
+## Model routing
 
-## Demo Video
+There are three modes you can switch between per message: `ollama`, `chatgpt`, or `auto`. Auto mode checks whether the Ollama model you picked is actually pulled and whether Ollama is actually running before trying to use it, and only falls back to ChatGPT if that check fails. Images never fall back though. The Sign in with ChatGPT API route can't accept attachments at all (found that out the hard way), so an attached image always stays local no matter what mode you're in.
 
-https://github.com/user-attachments/assets/e5be3700-8902-42ae-8549-d7109b8a179a
+The code for talking to each backend lives in its own package, [`mata-provider-core`](https://github.com/jacobkobr/mata-provider-core). I pulled it out of the main app so it wouldn't get tangled up with the React/Zustand state, it's just one `Provider` interface (`checkStatus`, `listModels`, `generate`) with an Ollama implementation and a ChatGPT one.
 
-## Prerequisites
+## Features
 
-- Node.js 18+ and npm
-- Ollama installed and running locally
-- Windows, macOS, or Linux operating system
+- Full Ollama model catalog instead of a handful of hardcoded ones. Pull, delete, manage models, vision models included.
+- A message rail, a small minimap on the side of the chat for jumping around long conversations, with color coded bookmarks and keyboard shortcuts.
+- Quick ask: hit Ctrl+Shift+Space from anywhere and a small always on top window pops up so you can ask something without switching over to the main app.
+- Stop, regenerate, edit, copy, and delete on individual messages, chat search, a compact window mode, light and dark themes.
 
-## Getting Started
+![ChatGPT settings](screenshots/screenshot2.png)
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/jacobkobr/mata.git
-   cd mata
-   ```
+![Quick ask overlay](screenshots/screenshot3.png)
 
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+## Running it
 
-3. Start the development server:
-   ```bash
-   npm run electron-dev
-   ```
+```bash
+git clone https://github.com/jacobkobr/mata.git
+cd mata
+npm install
+npm run electron-dev
+```
 
-4. Build the desktop application:
-   ```bash
-   npm run electron-build
-   ```
+You'll need Ollama running locally, a ChatGPT account to sign into, or both. If you've got both set up, auto mode is what decides which one actually handles a given message.
 
-## Technologies Used
+## Building
 
-### Core Framework
-- **Next.js 14** - App Router for efficient page routing and server components
-- **Electron** - Enables native desktop capabilities with custom window management and IPC communication
+```bash
+npm run pack   # unpacked build, mostly for testing
+npm run dist   # windows installer
+```
 
-### State Management & Data
-- **Zustand** - Lightweight state management with persistent storage capabilities, used for app settings and model configurations
-- **Local JSON storage** - Chat history is persisted to flat JSON files in the app's user-data directory via Electron's main process
+I've only set up electron-builder for Windows so far since that's what I use day to day.
 
-### UI/UX
-- **Radix UI** - Headless UI components providing accessible primitives for complex interactions
-- **Tailwind CSS** - Utility-first CSS framework with custom theming and dark mode support
-- **shadcn/ui** - Component system built on Radix UI with consistent styling and behavior
+## Stack
 
-### AI Integration
-- **Ollama Integration** - Custom service layer for managing local AI models with:
-  - Real-time model installation tracking
-  - Streaming responses
-  - Multi-model support
-  - Vision model capabilities
-
-### IPC Communication
-- **Custom IPC Bridge** - Secure communication channel between Electron main and renderer processes:
-  - Type-safe message passing
-  - Window state management
-  - File system access
-
-## Development
-
-- Run in development mode: `npm run electron-dev`
-- Build desktop app: `npm run electron-build`
-- Build for specific platform:
-  - Windows: `npm run electron-build -- --win`
-  - macOS: `npm run electron-build -- --mac`
-  - Linux: `npm run electron-build -- --linux`
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
+Next.js 14, Electron, Zustand, Tailwind, and Radix for the UI. Sign in with ChatGPT uses OpenAI's own devkit, vendored in unmodified and kept under its own license since I didn't want to touch the vendor code directly.
 
 ## License
 
-MIT License - see LICENSE file for details 
+MIT, see LICENSE.
