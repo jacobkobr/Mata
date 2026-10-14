@@ -1,3 +1,5 @@
+const path = require('path');
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'export',
@@ -6,7 +8,9 @@ const nextConfig = {
     unoptimized: true,
   },
   reactStrictMode: true,
-  swcMinify: true,
+  // Minification and font optimization are on by default as of Next 15;
+  // the explicit flags for both were removed and now just warn.
+  outputFileTracingRoot: path.join(__dirname),
   webpack: (config) => {
     config.resolve.fallback = { fs: false, path: false };
     config.resolve.alias = {
@@ -15,7 +19,6 @@ const nextConfig = {
     };
     return config;
   },
-  optimizeFonts: true,
   typescript: {
     ignoreBuildErrors: true,
   },
