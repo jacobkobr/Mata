@@ -302,6 +302,7 @@ function createCompactWindow() {
     skipTaskbar: true,
     webPreferences: {
       nodeIntegration: false,
+      sandbox: true,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js'),
       webSecurity: true,
@@ -363,6 +364,7 @@ function createQuickAskWindow() {
     minHeight: 130,
     webPreferences: {
       nodeIntegration: false,
+      sandbox: true,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js'),
       webSecurity: true,
@@ -410,6 +412,7 @@ function createMainWindow() {
     icon: iconPath,
     webPreferences: {
       nodeIntegration: false,
+      sandbox: true,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js'),
       webSecurity: true,
