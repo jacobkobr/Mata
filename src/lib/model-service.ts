@@ -153,7 +153,7 @@ async function pullModel(
           }
           if (data.completed) {
             downloadedBytes = parseInt(data.completed)
-            const progress = Math.round((downloadedBytes / totalBytes) * 100)
+            const progress = totalBytes > 0 ? Math.round((downloadedBytes / totalBytes) * 100) : 0
             if (progress !== lastProgress) {
               lastProgress = progress
               onProgress?.(progress)
@@ -193,8 +193,7 @@ export async function deleteOllamaModel(modelId: string): Promise<ModelInfo> {
     }
 
     console.log(`Deleting model ${modelId} (${pullName})...`)
-    
-    // First try the new API endpoint
+
     const response = await fetch(`${API_ENDPOINTS.ollama}/api/delete`, {
       method: 'DELETE',
       headers: {
@@ -206,22 +205,9 @@ export async function deleteOllamaModel(modelId: string): Promise<ModelInfo> {
     })
 
     if (!response.ok) {
-      // If that fails, try the older endpoint
-      const oldResponse = await fetch(`${API_ENDPOINTS.ollama}/delete`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: pullName,
-        }),
-      })
-
-      if (!oldResponse.ok) {
-        const error = await oldResponse.text()
-        console.error('Model deletion error:', error)
-        throw new Error(`Failed to delete model: ${error}`)
-      }
+      const error = await response.text()
+      console.error('Model deletion error:', error)
+      throw new Error(`Failed to delete model: ${error}`)
     }
 
     return {
@@ -256,7 +242,7 @@ export async function startOllamaModel(modelId: string): Promise<ModelInfo> {
     return {
       name: modelId,
       status: 'error',
-      error: 'Failed to start model',
+      error: error instanceof Error ? error.message : 'Failed to start model',
     }
   }
 }

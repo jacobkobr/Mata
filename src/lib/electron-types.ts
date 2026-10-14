@@ -14,6 +14,8 @@ export interface ElectronWindow {
     deleteChat: (chatId: string) => Promise<boolean>
     getChatMessages: (chatId: string) => Promise<DBMessage[]>
     addMessage: (message: DBMessage) => Promise<boolean>
+    updateMessage: (message: DBMessage) => Promise<boolean>
+    deleteMessage: (messageId: string) => Promise<boolean>
   }
   // Sign in with ChatGPT — session state and chat text only, never tokens.
   chatgpt: {

@@ -22,7 +22,7 @@ export function QuickAsk() {
   const [input, setInput] = useState('')
   const [showFileUpload, setShowFileUpload] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  const { messages, isLoading, sendMessage } = useChatStore()
+  const { messages, isLoading, sendMessage, stopGeneration } = useChatStore()
   const hasExpandedRef = useRef(false)
 
   useEffect(() => {
@@ -94,6 +94,7 @@ export function QuickAsk() {
         onChange={setInput}
         onSubmit={handleSubmit}
         isLoading={isLoading}
+        onStop={stopGeneration}
         placeholder="Message Mata..."
         showUpload
         onToggleUpload={() => setShowFileUpload(!showFileUpload)}

@@ -110,6 +110,32 @@ function addMessage(message) {
   }
 }
 
+function updateMessage(message) {
+  try {
+    const messages = getAllMessages();
+    const index = messages.findIndex(m => m.id === message.id);
+    if (index === -1) return false;
+    messages[index] = message;
+    fs.writeFileSync(MESSAGES_FILE, JSON.stringify(messages, null, 2));
+    return true;
+  } catch (error) {
+    console.error('Failed to update message:', error);
+    return false;
+  }
+}
+
+function deleteMessage(messageId) {
+  try {
+    const messages = getAllMessages();
+    const filtered = messages.filter(m => m.id !== messageId);
+    fs.writeFileSync(MESSAGES_FILE, JSON.stringify(filtered, null, 2));
+    return true;
+  } catch (error) {
+    console.error('Failed to delete message:', error);
+    return false;
+  }
+}
+
 // Initialize storage on module load
 initStorage();
 
@@ -120,4 +146,6 @@ module.exports = {
   deleteChat,
   getChatMessages,
   addMessage,
-}; 
+  updateMessage,
+  deleteMessage,
+};

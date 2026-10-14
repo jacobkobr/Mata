@@ -9,14 +9,12 @@ import { ProviderSwitcher } from '@/components/chat/provider-switcher'
 import { useMessageRail } from '@/hooks/use-message-rail'
 import { useRailKeybinds } from '@/hooks/use-rail-keybinds'
 import { BookmarkExportDialog } from '@/components/chat/bookmark-export-dialog'
-import { PopoutWindow } from '@/components/popout-window'
 import { ChatSidebar } from '@/components/chat-sidebar'
 import { WelcomeHeader } from '@/components/welcome-header'
 import { FileUpload } from '@/components/file-upload'
 import { CompactChat } from '@/components/compact-chat'
 import { QuickAsk } from '@/components/quick-ask'
 import { useChatStore } from '@/store/chat-store'
-import { useSettingsStore } from '@/store/settings-store'
 import { useRailStore } from '@/store/rail-store'
 import { useBookmarkStore } from '@/store/bookmark-store'
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts'
@@ -29,8 +27,7 @@ export default function Home() {
   const isQuickAskMode = windowMode === 'quickask'
   const [isCompactMode, setIsCompactMode] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  const { messages, isLoading, sendMessage } = useChatStore()
-  const { isPopoutMode, updateSettings } = useSettingsStore()
+  const { messages, isLoading, sendMessage, stopGeneration } = useChatStore()
   const { setTheme, theme } = useTheme()
   const { containerRef, registerMessageRef, scrollToMessage, activeId } = useMessageRail(messages.map(m => m.id))
   const quickBookmarkColor = useRailStore((state) => state.quickBookmarkColor)
@@ -47,8 +44,6 @@ export default function Home() {
       if (window.electron) {
         const isCompact = await window.electron.send('toggle-compact-mode')
         setIsCompactMode(isCompact)
-      } else {
-        updateSettings({ isPopoutMode: !isPopoutMode })
       }
     },
     focusInput: () => inputRef.current?.focus(),
@@ -83,10 +78,6 @@ export default function Home() {
 
   if (isCompactMode) {
     return <CompactChat />
-  }
-
-  if (isPopoutMode) {
-    return <PopoutWindow />
   }
 
   return (
@@ -139,6 +130,7 @@ export default function Home() {
               onChange={setInput}
               onSubmit={handleSubmit}
               isLoading={isLoading}
+              onStop={stopGeneration}
               showUpload
               onToggleUpload={() => setShowFileUpload(!showFileUpload)}
               showSendLabel

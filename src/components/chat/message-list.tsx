@@ -32,9 +32,9 @@ export function MessageList({ messages, isLoading, isCompact, emptyState, classN
 
   return (
     <div className={cn('space-y-4', className)}>
-      {messages.map((message) => (
+      {messages.map((message, index) => (
         <div key={message.id} data-message-id={message.id} ref={(el) => onRegisterMessageRef?.(message.id, el)}>
-          <ChatMessage message={message} isCompact={isCompact} />
+          <ChatMessage message={message} isCompact={isCompact} isLast={index === messages.length - 1} />
         </div>
       ))}
       {isLoading && (

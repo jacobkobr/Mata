@@ -97,6 +97,32 @@ const browserStorage = {
       console.error('Failed to add message to localStorage:', error);
       return false;
     }
+  },
+
+  updateMessage: (message: DBMessage): boolean => {
+    try {
+      const messages = browserStorage.getAllMessages();
+      const index = messages.findIndex(m => m.id === message.id);
+      if (index === -1) return false;
+      messages[index] = message;
+      localStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(messages));
+      return true;
+    } catch (error) {
+      console.error('Failed to update message in localStorage:', error);
+      return false;
+    }
+  },
+
+  deleteMessage: (messageId: string): boolean => {
+    try {
+      const messages = browserStorage.getAllMessages();
+      const filtered = messages.filter(m => m.id !== messageId);
+      localStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(filtered));
+      return true;
+    } catch (error) {
+      console.error('Failed to delete message from localStorage:', error);
+      return false;
+    }
   }
 };
 
@@ -184,6 +210,36 @@ export async function addMessage(message: DBMessage): Promise<void> {
     }
   } catch (error) {
     console.error('Failed to add message:', error);
+    throw error;
+  }
+}
+
+export async function updateMessage(message: DBMessage): Promise<void> {
+  try {
+    const success = isElectron
+      ? await window.electron.storage.updateMessage(message)
+      : browserStorage.updateMessage(message);
+
+    if (!success) {
+      throw new Error('Failed to update message');
+    }
+  } catch (error) {
+    console.error('Failed to update message:', error);
+    throw error;
+  }
+}
+
+export async function deleteMessage(messageId: string): Promise<void> {
+  try {
+    const success = isElectron
+      ? await window.electron.storage.deleteMessage(messageId)
+      : browserStorage.deleteMessage(messageId);
+
+    if (!success) {
+      throw new Error('Failed to delete message');
+    }
+  } catch (error) {
+    console.error('Failed to delete message:', error);
     throw error;
   }
 }

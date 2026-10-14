@@ -166,6 +166,8 @@ function initializeIpcHandlers() {
   ipcMain.handle('delete-chat', (event, chatId) => storage.deleteChat(chatId));
   ipcMain.handle('get-chat-messages', (event, chatId) => storage.getChatMessages(chatId));
   ipcMain.handle('add-message', (event, message) => storage.addMessage(message));
+  ipcMain.handle('update-message', (event, message) => storage.updateMessage(message));
+  ipcMain.handle('delete-message', (event, messageId) => storage.deleteMessage(messageId));
 
   // System monitoring handlers
   ipcMain.handle('get-system-info', async () => {
@@ -443,6 +445,17 @@ function createMainWindow() {
   mainWindow.on('closed', () => {
     stopMonitoring();
     mainWindow = null;
+    // Compact mode and quick-ask are only ever hidden, never destroyed, so they'd
+    // otherwise keep the process (and global shortcuts) alive invisibly forever —
+    // there's no tray icon, so that would leave the user with no way to quit.
+    if (compactWindow && !compactWindow.isDestroyed()) {
+      compactWindow.destroy();
+      compactWindow = null;
+    }
+    if (quickAskWindow && !quickAskWindow.isDestroyed()) {
+      quickAskWindow.destroy();
+      quickAskWindow = null;
+    }
   });
 
   if (isDev) {

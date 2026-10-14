@@ -76,6 +76,8 @@ interface ElectronAPI {
     deleteChat(chatId: string): Promise<any>
     getChatMessages(chatId: string): Promise<any>
     addMessage(message: any): Promise<any>
+    updateMessage(message: any): Promise<any>
+    deleteMessage(messageId: string): Promise<any>
   }
   chatgpt: {
     signIn(options?: SignInOptions): Promise<SessionState>

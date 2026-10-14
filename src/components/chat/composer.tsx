@@ -1,7 +1,7 @@
 'use client'
 
 import { forwardRef } from 'react'
-import { Loader2, Send, Upload } from 'lucide-react'
+import { Loader2, Square, Send, Upload } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 
@@ -10,6 +10,8 @@ export interface ComposerProps {
   onChange: (value: string) => void
   onSubmit: (e: React.FormEvent) => void
   isLoading: boolean
+  /** When provided, the submit button becomes a Stop button while isLoading instead of a disabled spinner. */
+  onStop?: () => void
   placeholder?: string
   showUpload?: boolean
   onToggleUpload?: () => void
@@ -28,6 +30,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
     onChange,
     onSubmit,
     isLoading,
+    onStop,
     placeholder = 'Type your message...',
     showUpload = false,
     onToggleUpload,
@@ -74,23 +77,37 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
         onKeyDown={handleKeyDown}
       />
 
-      <Button
-        type="submit"
-        disabled={isLoading || !value.trim()}
-        size={isCompact ? 'icon' : 'default'}
-        className={height}
-      >
-        {isLoading ? (
-          <Loader2 className={cn('animate-spin', isCompact ? 'h-4 w-4' : 'h-5 w-5')} />
-        ) : showSendLabel ? (
-          <>
-            <Send className="h-5 w-5" />
-            <span className="font-medium">Send</span>
-          </>
-        ) : (
-          <Send className={isCompact ? 'h-4 w-4' : 'h-5 w-5'} />
-        )}
-      </Button>
+      {isLoading && onStop ? (
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={onStop}
+          size={isCompact ? 'icon' : 'default'}
+          className={height}
+          title="Stop generating"
+        >
+          <Square className={cn('fill-current', isCompact ? 'h-3.5 w-3.5' : 'h-4 w-4')} />
+          {!isCompact && showSendLabel && <span className="font-medium">Stop</span>}
+        </Button>
+      ) : (
+        <Button
+          type="submit"
+          disabled={isLoading || !value.trim()}
+          size={isCompact ? 'icon' : 'default'}
+          className={height}
+        >
+          {isLoading ? (
+            <Loader2 className={cn('animate-spin', isCompact ? 'h-4 w-4' : 'h-5 w-5')} />
+          ) : showSendLabel ? (
+            <>
+              <Send className="h-5 w-5" />
+              <span className="font-medium">Send</span>
+            </>
+          ) : (
+            <Send className={isCompact ? 'h-4 w-4' : 'h-5 w-5'} />
+          )}
+        </Button>
+      )}
     </form>
   )
 })

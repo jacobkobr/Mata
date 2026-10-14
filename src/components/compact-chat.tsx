@@ -11,7 +11,7 @@ export function CompactChat() {
   const [input, setInput] = useState('')
   const [isExpanded, setIsExpanded] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  const { messages, isLoading, sendMessage } = useChatStore()
+  const { messages, isLoading, sendMessage, stopGeneration } = useChatStore()
 
   useEffect(() => {
     inputRef.current?.focus()
@@ -62,6 +62,7 @@ export function CompactChat() {
           onChange={setInput}
           onSubmit={handleSubmit}
           isLoading={isLoading}
+          onStop={stopGeneration}
           placeholder="Ask anything..."
           size="compact"
         />

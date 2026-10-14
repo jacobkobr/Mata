@@ -139,6 +139,24 @@ try {
             console.error('Failed to add message:', error);
             throw error;
           }
+        },
+        updateMessage: async (message) => {
+          try {
+            debugLog('Updating message:', message);
+            return await ipcRenderer.invoke('update-message', message);
+          } catch (error) {
+            console.error('Failed to update message:', error);
+            throw error;
+          }
+        },
+        deleteMessage: async (messageId) => {
+          try {
+            debugLog('Deleting message:', messageId);
+            return await ipcRenderer.invoke('delete-message', messageId);
+          } catch (error) {
+            console.error('Failed to delete message:', error);
+            throw error;
+          }
         }
       },
       // Sign in with ChatGPT — renderer only ever sees session state and chat

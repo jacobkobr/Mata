@@ -50,6 +50,12 @@ export function ChatSidebar() {
     setEditTitle('')
   }
 
+  const handleDeleteChat = (chat: DBChat) => {
+    if (window.confirm(`Delete "${chat.title}"? This can't be undone.`)) {
+      deleteChat(chat.id)
+    }
+  }
+
   const formatDate = (timestamp: number) => {
     const date = new Date(timestamp)
     const now = new Date()
@@ -180,6 +186,7 @@ export function ChatSidebar() {
                             e.stopPropagation()
                             handleEditTitle(chat)
                           }}
+                          aria-label="Rename chat"
                           className="p-1 hover:bg-background rounded text-muted-foreground hover:text-foreground"
                         >
                           <Edit2 className="h-3.5 w-3.5" />
@@ -187,8 +194,9 @@ export function ChatSidebar() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
-                            deleteChat(chat.id)
+                            handleDeleteChat(chat)
                           }}
+                          aria-label="Delete chat"
                           className="p-1 hover:bg-background rounded text-muted-foreground hover:text-destructive"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
