@@ -1,10 +1,17 @@
 import { create } from 'zustand'
-import { generateOllamaResponse, generateDeepSeekResponse } from '@/lib/ai-service'
+import { v4 as uuidv4 } from 'uuid'
+import { createOllamaProvider, createChatGPTProvider, type Provider } from '@mata/provider-core'
 import { AI_MODELS } from '@/lib/config'
 import { useSettingsStore } from './settings-store'
 import * as chatService from '@/lib/chat-service'
 import type { DBChat, DBMessage } from '@/lib/types'
 import { indexMessage, clearChatIndex, clearAllIndices, searchMessages } from '@/lib/indexing-service'
+
+const ollamaProvider = createOllamaProvider()
+
+// ChatGPT's provider needs the main-process IPC bridge, which only exists in Electron.
+const chatGPTProvider: Provider | null =
+  typeof window !== 'undefined' && window.electron ? createChatGPTProvider(window.electron.chatgpt) : null
 
 export interface Message {
   id: string
@@ -36,7 +43,7 @@ interface ChatState {
   sendMessage: (content: string, imageData?: { content: string; type: string }) => Promise<void>
   clearMessages: () => void
   clearError: () => void
-  startNewChat: () => void
+  startNewChat: () => Promise<string>
   switchChat: (chatId: string) => void
   deleteChat: (chatId: string) => void
   updateChatTitle: (chatId: string, title: string) => void
@@ -99,11 +106,11 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     }
   },
 
-  startNewChat: () => {
+  startNewChat: async () => {
     const settings = useSettingsStore.getState()
-    const chatId = Math.random().toString(36).substring(7)
+    const chatId = uuidv4()
     const now = Date.now()
-    
+
     const newChat: ChatHistory = {
       id: chatId,
       title: 'New Chat',
@@ -113,20 +120,18 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       createdAt: now,
     }
 
-    try {
-      chatService.createChat(newChat)
-      
-      set((state) => ({
-        currentChatId: chatId,
-        chatHistories: {
-          ...state.chatHistories,
-          [chatId]: newChat,
-        },
-        messages: [],
-      }))
-    } catch (error) {
-      console.error('Failed to create new chat:', error)
-    }
+    await chatService.createChat(newChat)
+
+    set((state) => ({
+      currentChatId: chatId,
+      chatHistories: {
+        ...state.chatHistories,
+        [chatId]: newChat,
+      },
+      messages: [],
+    }))
+
+    return chatId
   },
 
   switchChat: (chatId: string) => {
@@ -189,7 +194,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
   addMessage: async (message) => {
     const newMessage = {
       ...message,
-      id: Math.random().toString(36).substring(7),
+      id: uuidv4(),
       timestamp: Date.now(),
       modelId: useSettingsStore.getState().selectedModel,
     }
@@ -247,36 +252,21 @@ export const useChatStore = create<ChatState>()((set, get) => ({
 
   sendMessage: async (content: string, imageData?: { content: string; type: string }) => {
     try {
-      if (!get().currentChatId) {
-        // Create new chat and wait for it to complete
-        await new Promise<void>((resolve) => {
-          get().startNewChat()
-          // Wait a short time for the chat to be created and saved
-          setTimeout(resolve, 100)
-        })
-      }
-
-      const currentChatId = get().currentChatId
-      if (!currentChatId) return
+      const currentChatId = get().currentChatId ?? (await get().startNewChat())
 
       const userMessage: Message = {
         role: 'user',
         content,
-        id: Math.random().toString(36).substring(7),
+        id: uuidv4(),
         timestamp: Date.now(),
         chatId: currentChatId
       }
-      
-      // Add user message and wait for it to be saved
-      await new Promise<void>((resolve) => {
-        set((state) => ({
-          messages: [...state.messages, userMessage],
-          isLoading: true,
-          error: null,
-        }))
-        // Wait for state update
-        setTimeout(resolve, 50)
-      })
+
+      set((state) => ({
+        messages: [...state.messages, userMessage],
+        isLoading: true,
+        error: null,
+      }))
 
       // Save user message to storage
       await chatService.addMessage({
@@ -288,21 +278,13 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       const settings = useSettingsStore.getState()
       const messages = get().messages
       
-      let response: string
+      let response: string = ''
       try {
-        const modelConfig = AI_MODELS.find(m => m.id === settings.selectedModel)
-        if (!modelConfig) {
-          throw new Error('Selected model not found in configuration')
-        }
-
-        // If image data is provided, use the vision model
-        const modelId = imageData ? 'llama-vision' : settings.selectedModel
-
         // Create a temporary message for streaming
         const assistantMessage: Message = {
           role: 'assistant',
           content: '',
-          id: Math.random().toString(36).substring(7),
+          id: uuidv4(),
           timestamp: Date.now(),
           chatId: currentChatId
         }
@@ -312,43 +294,64 @@ export const useChatStore = create<ChatState>()((set, get) => ({
           messages: [...state.messages, assistantMessage],
         }))
 
-        if (modelConfig.provider === 'ollama') {
-          response = await generateOllamaResponse(
-            messages,
-            modelId,
-            {
-              temperature: settings.temperature,
-              maxTokens: settings.maxTokens,
-            },
-            imageData,
-            // Streaming callback
-            (text: string) => {
-              set((state) => ({
-                messages: state.messages.map(msg =>
-                  msg.id === assistantMessage.id
-                    ? { ...msg, content: msg.content + text }
-                    : msg
-                ),
-              }))
-            }
-          )
-        } else if (modelConfig.provider === 'deepseek') {
-          response = await generateDeepSeekResponse(messages, {
-            temperature: settings.temperature,
-            maxTokens: settings.maxTokens,
-          })
+        const knowledgeContext = settings.advancedSettings.modelKnowledge
+          .filter(k => k.enabled)
+          .map(k => k.content)
+          .join('\n')
+
+        let provider: Provider
+        let modelId: string
+
+        if (settings.activeProvider === 'chatgpt') {
+          if (!chatGPTProvider) {
+            throw new Error('Sign in with ChatGPT requires the Mata desktop app.')
+          }
+          if (!settings.chatGPTModelSlug) {
+            throw new Error('Select a ChatGPT model in Settings before sending a message.')
+          }
+          provider = chatGPTProvider
+          modelId = settings.chatGPTModelSlug
         } else {
-          throw new Error('Unsupported model provider')
+          const modelConfig = AI_MODELS.find(m => m.id === settings.selectedModel)
+          if (!modelConfig) {
+            throw new Error('Selected model not found in configuration')
+          }
+          provider = ollamaProvider
+          // If image data is provided, use the vision model
+          modelId = imageData ? 'llama-vision' : settings.selectedModel
         }
 
-        // Update the final message
-        set((state) => ({
-          messages: state.messages.map(msg =>
-            msg.id === assistantMessage.id
-              ? { ...msg, content: response }
-              : msg
-          ),
-        }))
+        if (settings.advancedSettings.debugMode) {
+          console.log('[Mata debug] sending message', {
+            provider: provider.id,
+            model: modelId,
+            temperature: settings.temperature,
+            maxTokens: settings.maxTokens,
+            messageCount: messages.length,
+            hasImage: !!imageData,
+            knowledgeContext: knowledgeContext ? `${knowledgeContext.length} chars` : undefined,
+          })
+        }
+
+        for await (const chunk of provider.generate({
+          model: modelId,
+          messages: messages.map(m => ({ role: m.role, content: m.content })),
+          images: imageData,
+          temperature: settings.temperature,
+          maxTokens: settings.maxTokens,
+          knowledgeContext: knowledgeContext || undefined,
+        })) {
+          set((state) => ({
+            messages: state.messages.map(msg =>
+              msg.id === assistantMessage.id
+                ? { ...msg, content: chunk.done ? chunk.text : msg.content + chunk.text }
+                : msg
+            ),
+          }))
+          if (chunk.done) {
+            response = chunk.text
+          }
+        }
 
         // Save the final message to the database
         const finalMessage = {
@@ -363,10 +366,9 @@ export const useChatStore = create<ChatState>()((set, get) => ({
         await indexMessage(finalMessage)
       } catch (error) {
         if (error instanceof Error && error.message.includes('Could not connect')) {
-          const provider = settings.selectedModel.includes('deepseek') ? 'deepseek' : 'ollama'
           get().addMessage({
             role: 'error',
-            content: INSTALLATION_INSTRUCTIONS[provider] || error.message,
+            content: INSTALLATION_INSTRUCTIONS.ollama,
             chatId: currentChatId
           })
         } else {
