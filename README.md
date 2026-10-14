@@ -47,7 +47,7 @@ https://github.com/user-attachments/assets/e5be3700-8902-42ae-8549-d7109b8a179a
 
 ### State Management & Data
 - **Zustand** - Lightweight state management with persistent storage capabilities, used for app settings and model configurations
-- **SQLite (better-sqlite3)** - Embedded database for efficient local chat history storage with full text search support
+- **Local JSON storage** - Chat history is persisted to flat JSON files in the app's user-data directory via Electron's main process
 
 ### UI/UX
 - **Radix UI** - Headless UI components providing accessible primitives for complex interactions

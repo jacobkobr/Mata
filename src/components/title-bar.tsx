@@ -3,8 +3,6 @@
 import React, { useEffect, useState } from 'react';
 import { Minus, Square, Maximize2, X } from 'lucide-react';
 import Image from 'next/image';
-import { ThemeToggle } from './theme-toggle';
-import { SettingsPanel } from './settings-panel';
 import { cn } from '@/lib/utils';
 import '@/lib/electron-types';
 
