@@ -5,8 +5,9 @@ import { ToggleField } from '@/components/ui/toggle-field'
 import { Button } from '@/components/ui/button'
 
 export function GeneralTab() {
-  const { temperature, maxTokens, shortcuts, advancedSettings, updateSettings, resetSettings } = useSettingsStore()
+  const { temperature, maxTokens, activeProvider, shortcuts, advancedSettings, updateSettings, resetSettings } = useSettingsStore()
   const { clearAllChats } = useChatStore()
+  const isChatGPTActive = activeProvider === 'chatgpt'
 
   const handleClearHistory = () => {
     if (window.confirm('Are you sure you want to clear all chat history? This cannot be undone.')) {
@@ -22,6 +23,13 @@ export function GeneralTab() {
           <h3 className="text-lg font-medium">Basic Settings</h3>
         </div>
 
+        {isChatGPTActive && (
+          <p className="rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
+            Temperature and max tokens only apply to local Ollama models — Sign in with ChatGPT
+            doesn&apos;t expose these controls, so they&apos;re ignored while ChatGPT is active.
+          </p>
+        )}
+
         <div className="space-y-2">
           <label className="text-sm font-medium">Temperature</label>
           <input
@@ -31,7 +39,8 @@ export function GeneralTab() {
             step="0.1"
             value={temperature}
             onChange={(e) => updateSettings({ temperature: parseFloat(e.target.value) })}
-            className="w-full"
+            disabled={isChatGPTActive}
+            className="w-full disabled:opacity-50"
           />
           <div className="text-sm text-muted-foreground">{temperature}</div>
         </div>
@@ -44,7 +53,8 @@ export function GeneralTab() {
             max="4096"
             value={maxTokens}
             onChange={(e) => updateSettings({ maxTokens: parseInt(e.target.value) })}
-            className="w-full p-2 rounded-md border border-input bg-background"
+            disabled={isChatGPTActive}
+            className="w-full p-2 rounded-md border border-input bg-background disabled:opacity-50"
           />
         </div>
 
