@@ -6,6 +6,7 @@ import { useSettingsStore } from './settings-store'
 import * as chatService from '@/lib/chat-service'
 import type { DBChat, DBMessage } from '@/lib/types'
 import { indexMessage, clearChatIndex, clearAllIndices, searchMessages } from '@/lib/indexing-service'
+import { toast } from '@/components/ui/use-toast'
 
 const ollamaProvider = createOllamaProvider()
 
@@ -100,12 +101,6 @@ export const useChatStore = create<ChatState>()((set, get) => {
   ): Promise<void> {
     const settings = useSettingsStore.getState()
 
-    if (imageData && settings.activeProvider === 'chatgpt') {
-      throw new Error(
-        "Sign in with ChatGPT can't accept image attachments in this version of the API — switch to a local vision model (e.g. Llama Vision) to analyze images."
-      )
-    }
-
     const knowledgeContext = settings.advancedSettings.modelKnowledge
       .filter(k => k.enabled)
       .map(k => k.content)
@@ -114,7 +109,33 @@ export const useChatStore = create<ChatState>()((set, get) => {
     let provider: Provider
     let modelId: string
 
-    if (settings.activeProvider === 'chatgpt') {
+    if (imageData) {
+      // Sign in with ChatGPT can't accept images at all in this SDK version
+      // (confirmed by reading its request validation — not a Mata limitation
+      // that can be worked around client-side). A local vision model is the
+      // only thing that can actually analyze an attached image right now, so
+      // route there regardless of which provider is otherwise selected.
+      const ollamaStatus = await ollamaProvider.checkStatus()
+      const visionPullName = MODEL_PULL_NAMES['llama-vision']
+      const installed = ollamaStatus.available ? await ollamaProvider.listModels() : []
+      const hasVisionModel = !!visionPullName && installed.some(m => m.id === visionPullName)
+
+      if (!hasVisionModel) {
+        throw new Error(
+          "Analyzing images needs a local vision model — Sign in with ChatGPT can't accept image attachments in this version of the API. Pull Llama Vision (or another vision model) from the Models tab, then try again."
+        )
+      }
+
+      provider = ollamaProvider
+      modelId = 'llama-vision'
+
+      if (settings.activeProvider !== 'ollama') {
+        toast({
+          title: 'Used a local vision model for this image',
+          description: "ChatGPT can't accept image attachments through Sign in with ChatGPT yet, so this one went to Llama Vision instead.",
+        })
+      }
+    } else if (settings.activeProvider === 'chatgpt') {
       if (!chatGPTProvider) {
         throw new Error('Sign in with ChatGPT requires the Mata desktop app.')
       }
@@ -124,12 +145,10 @@ export const useChatStore = create<ChatState>()((set, get) => {
       provider = chatGPTProvider
       modelId = settings.chatGPTModelSlug
     } else if (settings.activeProvider === 'auto') {
-      const resolved = await resolveAutoProvider(settings, !!imageData)
+      const resolved = await resolveAutoProvider(settings)
       if (!resolved) {
         throw new Error(
-          imageData
-            ? 'No local vision model is installed — pull one (e.g. Llama Vision) to analyze images in Auto mode.'
-            : "Auto mode couldn't find a usable model — make sure Ollama is running with a model installed, or sign in with ChatGPT and enable plan sharing."
+          "Auto mode couldn't find a usable model — make sure Ollama is running with a model installed, or sign in with ChatGPT and enable plan sharing."
         )
       }
       provider = resolved.provider
@@ -140,8 +159,7 @@ export const useChatStore = create<ChatState>()((set, get) => {
         throw new Error('Selected model not found in configuration')
       }
       provider = ollamaProvider
-      // If image data is provided, use the vision model
-      modelId = imageData ? 'llama-vision' : settings.selectedModel
+      modelId = settings.selectedModel
     }
 
     if (settings.advancedSettings.debugMode) {
@@ -226,28 +244,25 @@ export const useChatStore = create<ChatState>()((set, get) => {
   }
 
   /**
-   * Auto mode: prefer the locally selected Ollama model, but only if Ollama is
-   * actually running AND that model is actually pulled — otherwise fall back
-   * to ChatGPT (when signed in with sharing enabled). Images never go to
-   * ChatGPT (the API can't accept them), so an image-attached turn only ever
-   * considers a local vision model.
+   * Auto mode (text turns only — image turns are resolved earlier and never
+   * reach here): prefer the locally selected Ollama model, but only if Ollama
+   * is actually running AND that model is actually pulled — otherwise fall
+   * back to ChatGPT, when signed in with sharing enabled.
    */
   async function resolveAutoProvider(
-    settings: ReturnType<typeof useSettingsStore.getState>,
-    hasImage: boolean
+    settings: ReturnType<typeof useSettingsStore.getState>
   ): Promise<{ provider: Provider; modelId: string } | null> {
     const ollamaStatus = await ollamaProvider.checkStatus()
     if (ollamaStatus.available) {
       const installed = await ollamaProvider.listModels()
       const installedTags = new Set(installed.map(m => m.id))
-      const candidateModelId = hasImage ? 'llama-vision' : settings.selectedModel
-      const pullName = MODEL_PULL_NAMES[candidateModelId]
+      const pullName = MODEL_PULL_NAMES[settings.selectedModel]
       if (pullName && installedTags.has(pullName)) {
-        return { provider: ollamaProvider, modelId: candidateModelId }
+        return { provider: ollamaProvider, modelId: settings.selectedModel }
       }
     }
 
-    if (!hasImage && chatGPTProvider && settings.chatGPTModelSlug) {
+    if (chatGPTProvider && settings.chatGPTModelSlug) {
       const chatGPTStatus = await chatGPTProvider.checkStatus()
       if (chatGPTStatus.available) {
         return { provider: chatGPTProvider, modelId: settings.chatGPTModelSlug }
