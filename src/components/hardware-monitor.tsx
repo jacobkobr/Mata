@@ -267,18 +267,21 @@ export function HardwareMonitor() {
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">VRAM Usage</span>
                     <span className="font-medium">
-                      {formatBytes(resourceUsage.gpu.memoryUsed * 1024 * 1024)} /
-                      {' '}{formatBytes(resourceUsage.gpu.memoryTotal * 1024 * 1024)}
+                      {resourceUsage.gpu.memoryTotal > 0
+                        ? `${formatBytes(resourceUsage.gpu.memoryUsed * 1024 * 1024)} / ${formatBytes(resourceUsage.gpu.memoryTotal * 1024 * 1024)}`
+                        : 'Not reported by driver'}
                     </span>
                   </div>
-                  <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-primary transition-all duration-300"
-                      style={{
-                        width: `${(resourceUsage.gpu.memoryUsed / resourceUsage.gpu.memoryTotal) * 100}%`
-                      }}
-                    />
-                  </div>
+                  {resourceUsage.gpu.memoryTotal > 0 && (
+                    <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-primary transition-all duration-300"
+                        style={{
+                          width: `${(resourceUsage.gpu.memoryUsed / resourceUsage.gpu.memoryTotal) * 100}%`
+                        }}
+                      />
+                    </div>
+                  )}
                 </div>
               </>
             )}

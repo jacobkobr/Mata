@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import { Upload, X, FileText, Image as ImageIcon, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { toast } from '@/components/ui/use-toast'
 
 interface FileUploadProps {
   onFileContent: (content: string, type: 'text' | 'image', mimeType?: string) => void
@@ -66,7 +67,11 @@ export function FileUpload({ onFileContent, className }: FileUploadProps) {
       }
     } catch (error) {
       console.error('Error reading file:', error)
-      alert(error instanceof Error ? error.message : 'Failed to process file')
+      toast({
+        variant: 'destructive',
+        title: 'Could not add file',
+        description: error instanceof Error ? error.message : 'Failed to process file',
+      })
       clearFile()
     } finally {
       setIsLoading(false)
