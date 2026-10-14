@@ -2,8 +2,13 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useTheme } from 'next-themes'
-import { ChatMessage } from '@/components/chat-message'
-import { SettingsPanel } from '@/components/settings-panel'
+import { Composer } from '@/components/chat/composer'
+import { MessageList } from '@/components/chat/message-list'
+import { MessageRail } from '@/components/chat/message-rail'
+import { ProviderSwitcher } from '@/components/chat/provider-switcher'
+import { useMessageRail } from '@/hooks/use-message-rail'
+import { useRailKeybinds } from '@/hooks/use-rail-keybinds'
+import { BookmarkExportDialog } from '@/components/chat/bookmark-export-dialog'
 import { PopoutWindow } from '@/components/popout-window'
 import { ChatSidebar } from '@/components/chat-sidebar'
 import { WelcomeHeader } from '@/components/welcome-header'
@@ -11,18 +16,23 @@ import { FileUpload } from '@/components/file-upload'
 import { CompactChat } from '@/components/compact-chat'
 import { useChatStore } from '@/store/chat-store'
 import { useSettingsStore } from '@/store/settings-store'
+import { useRailStore } from '@/store/rail-store'
+import { useBookmarkStore } from '@/store/bookmark-store'
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts'
-import { Loader2, Send, Upload } from 'lucide-react'
 
 export default function Home() {
   const [input, setInput] = useState('')
   const [showFileUpload, setShowFileUpload] = useState(false)
   const [isCompactMode, setIsCompactMode] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
   const { messages, isLoading, sendMessage } = useChatStore()
   const { isPopoutMode, updateSettings } = useSettingsStore()
   const { setTheme, theme } = useTheme()
+  const { containerRef, registerMessageRef, scrollToMessage, activeId } = useMessageRail(messages.map(m => m.id))
+  const quickBookmarkColor = useRailStore((state) => state.quickBookmarkColor)
+  const toggleBookmark = useBookmarkStore((state) => state.toggleBookmark)
+
+  useRailKeybinds({ messages, activeId, scrollToMessage })
 
   useEffect(() => {
     // Check if we're in compact mode
@@ -52,13 +62,9 @@ export default function Home() {
     e.preventDefault()
     if (!input.trim() || isLoading) return
 
-    await sendMessage(input.trim())
+    const content = input.trim()
     setInput('')
-    
-    // Scroll to bottom after sending message
-    setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-    }, 100)
+    await sendMessage(content)
   }
 
   const handleFileContent = async (content: string, type: 'text' | 'image', mimeType?: string) => {
@@ -84,24 +90,28 @@ export default function Home() {
 
   return (
     <div className="flex h-full">
+      <BookmarkExportDialog />
       <ChatSidebar />
 
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col bg-background/50 backdrop-blur-sm">
-        <div className="flex-1 overflow-y-auto">
+        <div ref={containerRef} className="flex-1 overflow-y-auto">
           {messages.length === 0 ? (
             <WelcomeHeader />
           ) : (
-            <div className="max-w-3xl mx-auto p-4 space-y-4">
-              {messages.map((message) => (
-                <ChatMessage key={message.id} message={message} />
-              ))}
-              {isLoading && (
-                <div className="flex items-center justify-center py-4">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                </div>
-              )}
-              <div ref={messagesEndRef} />
+            <div className="mx-auto flex max-w-3xl gap-2 p-4">
+              <MessageList
+                messages={messages}
+                isLoading={isLoading}
+                className="min-w-0 flex-1"
+                onRegisterMessageRef={registerMessageRef}
+              />
+              <MessageRail
+                messages={messages}
+                activeId={activeId}
+                onNavigate={scrollToMessage}
+                onToggleBookmark={(id) => toggleBookmark(id, quickBookmarkColor)}
+              />
             </div>
           )}
         </div>
@@ -109,6 +119,10 @@ export default function Home() {
         {/* Input Area */}
         <div className="border-t border-border bg-card/50 backdrop-blur-sm p-4 sticky bottom-0">
           <div className="max-w-3xl mx-auto">
+            <div className="mb-2 flex justify-start">
+              <ProviderSwitcher />
+            </div>
+
             {showFileUpload ? (
               <div className="mb-4">
                 <FileUpload
@@ -117,53 +131,20 @@ export default function Home() {
                 />
               </div>
             ) : null}
-            
-            <form onSubmit={handleSubmit} className="flex items-start gap-2">
-              <button
-                type="button"
-                onClick={() => setShowFileUpload(!showFileUpload)}
-                className="p-3 rounded-lg hover:bg-accent flex items-center justify-center h-[50px]"
-                title="Upload file"
-              >
-                <Upload className="h-5 w-5" />
-              </button>
 
-              <div className="flex-1 relative">
-                <textarea
-                  ref={inputRef}
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  placeholder="Type your message..."
-                  className="w-full h-[50px] p-3 rounded-lg border border-input bg-background resize-none focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
-                  rows={1}
-                  disabled={isLoading}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault()
-                      handleSubmit(e)
-                    }
-                  }}
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="px-4 h-[50px] bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-2"
-              >
-                {isLoading ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : (
-                  <>
-                    <Send className="h-5 w-5" />
-                    <span className="font-medium">Send</span>
-                  </>
-                )}
-              </button>
-            </form>
+            <Composer
+              ref={inputRef}
+              value={input}
+              onChange={setInput}
+              onSubmit={handleSubmit}
+              isLoading={isLoading}
+              showUpload
+              onToggleUpload={() => setShowFileUpload(!showFileUpload)}
+              showSendLabel
+            />
           </div>
         </div>
       </div>
     </div>
   )
-} 
+}

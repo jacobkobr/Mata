@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google'
 import { Metadata } from 'next'
 import { ThemeProvider } from '@/components/theme-provider'
 import { Toaster } from '@/components/ui/toaster'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { AppShell } from '@/components/app-shell'
 
 const inter = Inter({
@@ -29,17 +30,19 @@ export default function RootLayout({
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </head>
-      <body className="font-sans min-h-screen bg-gradient-to-b from-background to-muted">
+      <body className="font-sans min-h-screen bg-background">
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
         >
-          <div className="flex flex-col h-screen">
-            <AppShell>
-              {children}
-            </AppShell>
-          </div>
-          <Toaster />
+          <TooltipProvider delayDuration={200}>
+            <div className="flex flex-col h-screen">
+              <AppShell>
+                {children}
+              </AppShell>
+            </div>
+            <Toaster />
+          </TooltipProvider>
         </ThemeProvider>
       </body>
     </html>

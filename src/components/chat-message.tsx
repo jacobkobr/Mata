@@ -5,11 +5,13 @@ import { Message } from '@/store/chat-store'
 import { cn } from '@/lib/utils'
 import ReactMarkdown from 'react-markdown'
 import type { Components } from 'react-markdown'
-import { AlertCircle, ChevronDown, ChevronRight, Brain, Bot, User2 } from 'lucide-react'
+import { AlertCircle, ChevronRight, Star } from 'lucide-react'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
+import rehypeKatex from 'rehype-katex'
 import 'katex/dist/katex.min.css'
-import { InlineMath, BlockMath } from 'react-katex'
+import { useBookmarkStore } from '@/store/bookmark-store'
+import { useRailStore } from '@/store/rail-store'
 
 interface ChatMessageProps {
   message: Message
@@ -17,36 +19,26 @@ interface ChatMessageProps {
 }
 
 export function ChatMessage({ message, isCompact = false }: ChatMessageProps) {
-  const [showThinking, setShowThinking] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
   const isUser = message.role === 'user'
   const isError = message.role === 'error'
+  const isBookmarked = useBookmarkStore((state) => !!state.bookmarks[message.id])
+  const toggleBookmark = useBookmarkStore((state) => state.toggleBookmark)
+  const quickBookmarkColor = useRailStore((state) => state.quickBookmarkColor)
 
   // Extract thinking content if present
   const thinkMatches = message.content.match(/<think>([\s\S]*?)<\/think>/g)
-  const thinking = thinkMatches 
+  const thinking = thinkMatches
     ? thinkMatches
         .map(match => match.replace(/<think>|<\/think>/g, '').trim())
         .join('\n\n')
     : null
 
-  // Process LaTeX expressions
-  const processContent = (text: string) => {
-    // Convert LaTeX expressions to plain text
-    return text
-      .replace(/\[([^\]]+)\]/g, '$1') // Remove square brackets
-      .replace(/<InlineMath>([^<]+)<\/InlineMath>/g, '$1') // Remove InlineMath tags
-      .replace(/\\boxed{([^}]+)}/g, '$1') // Remove boxed
-      .replace(/\\frac{(\d+)}{(\d+)}/g, '$1/$2') // Convert fractions to division
-      .trim()
-  }
-
-  // Remove the thinking tags and any surrounding whitespace
-  const cleanContent = processContent(
-    message.content
-      .replace(/<think>[\s\S]*?<\/think>/g, '')
-      .trim()
-  )
+  // Remove the thinking tags and any surrounding whitespace; math/LaTeX is
+  // rendered properly below via remark-math + rehype-katex, not regex surgery.
+  const cleanContent = message.content
+    .replace(/<think>[\s\S]*?<\/think>/g, '')
+    .trim()
 
   const components = {
     pre: ({ children }: { children: React.ReactNode }) => (
@@ -66,87 +58,91 @@ export function ChatMessage({ message, isCompact = false }: ChatMessageProps) {
     ),
   } as Components
 
+  const footer = (
+    <div className={cn(
+      'flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100',
+      isBookmarked && 'opacity-100'
+    )}>
+      <button
+        onClick={() => toggleBookmark(message.id, quickBookmarkColor)}
+        className="text-muted-foreground transition-colors hover:text-foreground"
+        style={isBookmarked ? { color: quickBookmarkColor } : undefined}
+        title={isBookmarked ? 'Remove bookmark' : 'Bookmark this message'}
+      >
+        <Star className={cn(isCompact ? 'h-3 w-3' : 'h-3.5 w-3.5', isBookmarked && 'fill-current')} />
+      </button>
+      <span className={cn('text-muted-foreground', isCompact ? 'text-[10px]' : 'text-xs')}>
+        {new Date(message.timestamp).toLocaleTimeString()}
+      </span>
+    </div>
+  )
+
+  if (isError) {
+    return (
+      <div className={cn('group flex gap-2 py-2', isCompact ? 'px-3' : 'px-4')}>
+        <div className={cn(
+          'flex max-w-[85%] items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 text-destructive',
+          isCompact ? 'px-3 py-2 text-xs' : 'px-4 py-3 text-sm'
+        )}>
+          <AlertCircle className={cn('mt-0.5 shrink-0', isCompact ? 'h-3 w-3' : 'h-4 w-4')} />
+          <div className="space-y-1">
+            <ReactMarkdown components={components} remarkPlugins={[remarkGfm]}>
+              {cleanContent}
+            </ReactMarkdown>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className={cn(
-      "py-6 px-4 flex gap-4",
-      message.role === 'assistant' ? 'bg-muted/50' : 'bg-background',
-      isCompact && 'py-3 px-3'
+      'group flex flex-col gap-1 py-2',
+      isCompact ? 'px-3' : 'px-4',
+      isUser ? 'items-end' : 'items-start'
     )}>
-      {/* Avatar */}
-      <div className={cn(
-        "rounded-full overflow-hidden flex-shrink-0",
-        isCompact ? "w-6 h-6" : "w-8 h-8"
-      )}>
-        {message.role === 'assistant' ? (
-          <div className="w-full h-full bg-primary flex items-center justify-center text-primary-foreground">
-            <Bot className={cn("w-5 h-5", isCompact && "w-4 h-4")} />
-          </div>
-        ) : (
-          <div className="w-full h-full bg-secondary flex items-center justify-center">
-            <User2 className={cn("w-5 h-5", isCompact && "w-4 h-4")} />
-          </div>
-        )}
-      </div>
-
-      {/* Message Content */}
-      <div className="flex-1 space-y-4">
-        <div className="flex items-center gap-2">
-          {isError && <AlertCircle className={cn("text-destructive", isCompact ? "h-3 w-3" : "h-4 w-4")} />}
-          <span className={cn(
-            'font-medium',
-            isError && 'text-destructive',
-            isCompact ? 'text-xs' : 'text-sm'
-          )}>
-            {isUser ? 'You' : isError ? 'System Message' : 'Assistant'}
-          </span>
-          <span className={cn(
-            "text-muted-foreground",
-            isCompact ? 'text-[10px]' : 'text-xs'
-          )}>
-            {new Date(message.timestamp).toLocaleTimeString()}
-          </span>
-        </div>
-        {thinking && message.role === 'assistant' && (
-          <div className="mb-4">
-            <button
-              onClick={() => setIsExpanded(!isExpanded)}
-              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-            >
-              <ChevronRight className={cn(
-                "transition-transform",
-                isExpanded && "rotate-90",
-                isCompact ? "h-3 w-3" : "h-4 w-4"
-              )} />
-              <span className={cn(
-                isCompact && "text-xs"
-              )}>Thinking Process</span>
-            </button>
-            {isExpanded && (
-              <div className={cn(
-                "mt-2 pl-4 border-l-2 border-muted-foreground/20 text-muted-foreground",
-                isCompact ? "text-xs" : "text-sm"
-              )}>
-                <ReactMarkdown
-                  components={components}
-                  remarkPlugins={[remarkGfm]}
-                >
-                  {thinking}
-                </ReactMarkdown>
-              </div>
-            )}
-          </div>
-        )}
+      {isUser ? (
         <div className={cn(
-          isCompact && "text-sm"
+          'max-w-[75%] rounded-2xl bg-primary text-primary-foreground',
+          isCompact ? 'px-3 py-1.5 text-sm' : 'px-4 py-2'
         )}>
-          <ReactMarkdown
-            components={components}
-            remarkPlugins={[remarkGfm]}
-          >
+          <ReactMarkdown components={components} remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
             {cleanContent}
           </ReactMarkdown>
         </div>
-      </div>
+      ) : (
+        <div className={cn('w-full max-w-[85%] space-y-2', isCompact && 'text-sm')}>
+          {thinking && (
+            <div>
+              <button
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+              >
+                <ChevronRight className={cn(
+                  'transition-transform',
+                  isExpanded && 'rotate-90',
+                  isCompact ? 'h-3 w-3' : 'h-4 w-4'
+                )} />
+                <span className={cn(isCompact && 'text-xs')}>Thinking Process</span>
+              </button>
+              {isExpanded && (
+                <div className={cn(
+                  'mt-2 pl-4 border-l-2 border-muted-foreground/20 text-muted-foreground',
+                  isCompact ? 'text-xs' : 'text-sm'
+                )}>
+                  <ReactMarkdown components={components} remarkPlugins={[remarkGfm]}>
+                    {thinking}
+                  </ReactMarkdown>
+                </div>
+              )}
+            </div>
+          )}
+          <ReactMarkdown components={components} remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+            {cleanContent}
+          </ReactMarkdown>
+        </div>
+      )}
+      {footer}
     </div>
   )
-} 
+}

@@ -1,20 +1,22 @@
 import { useEffect, useState } from 'react'
-import { MessageSquarePlus, Trash2, Edit2, Check, X, MessageSquare, Clock } from 'lucide-react'
+import { MessageSquarePlus, Trash2, Edit2, Check, X, MessageSquare, Clock, PanelLeft } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useChatStore } from '@/store/chat-store'
+import { useSettingsStore } from '@/store/settings-store'
 import { ChatSearch } from './chat-search'
 import type { DBChat } from '@/lib/types'
 
 export function ChatSidebar() {
-  const { 
-    currentChatId, 
+  const {
+    currentChatId,
     chatHistories,
-    startNewChat, 
-    switchChat, 
+    startNewChat,
+    switchChat,
     deleteChat,
     updateChatTitle,
     loadChats
   } = useChatStore()
+  const { sidebarCollapsed, updateSettings } = useSettingsStore()
 
   const [editingChatId, setEditingChatId] = useState<string | null>(null)
   const [editTitle, setEditTitle] = useState('')
@@ -27,6 +29,8 @@ export function ChatSidebar() {
   const handleStartNewChat = () => {
     startNewChat()
   }
+
+  const toggleCollapsed = () => updateSettings({ sidebarCollapsed: !sidebarCollapsed })
 
   const handleEditTitle = (chat: DBChat) => {
     setEditingChatId(chat.id)
@@ -63,16 +67,47 @@ export function ChatSidebar() {
     }
   }
 
-  return (
-    <div className="w-80 h-full bg-card border-r border-border flex flex-col">
-      <div className="p-4 border-b border-border space-y-2">
+  if (sidebarCollapsed) {
+    return (
+      <div className="relative h-full w-14 shrink-0 border-r border-border bg-card flex flex-col items-center gap-2 py-4">
+        <button
+          onClick={toggleCollapsed}
+          className="flex h-9 w-9 items-center justify-center rounded-md hover:bg-accent text-muted-foreground hover:text-foreground"
+          title="Expand sidebar"
+        >
+          <PanelLeft className="h-4 w-4" />
+        </button>
         <button
           onClick={handleStartNewChat}
-          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity"
+          className="flex h-9 w-9 items-center justify-center rounded-md bg-primary text-primary-foreground hover:opacity-90"
+          title="New chat"
         >
-          <MessageSquarePlus className="h-5 w-5" />
-          <span className="font-medium">New Chat</span>
+          <MessageSquarePlus className="h-4 w-4" />
         </button>
+        <SidebarDivider onClick={toggleCollapsed} />
+      </div>
+    )
+  }
+
+  return (
+    <div className="relative h-full w-80 shrink-0 border-r border-border bg-card flex flex-col">
+      <div className="flex items-center gap-1 p-4 pb-2">
+        <button
+          onClick={handleStartNewChat}
+          className="flex flex-1 items-center justify-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity"
+        >
+          <MessageSquarePlus className="h-4 w-4" />
+          <span className="text-sm font-medium">New Chat</span>
+        </button>
+        <button
+          onClick={toggleCollapsed}
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md hover:bg-accent text-muted-foreground hover:text-foreground"
+          title="Collapse sidebar"
+        >
+          <PanelLeft className="h-4 w-4" />
+        </button>
+      </div>
+      <div className="px-4 pb-2">
         <ChatSearch />
       </div>
 
@@ -85,8 +120,8 @@ export function ChatSidebar() {
                 key={chat.id}
                 className={cn(
                   'group rounded-lg transition-colors',
-                  currentChatId === chat.id 
-                    ? 'bg-accent/50 hover:bg-accent/60' 
+                  currentChatId === chat.id
+                    ? 'bg-accent/50 hover:bg-accent/60'
                     : 'hover:bg-accent/30'
                 )}
               >
@@ -172,6 +207,18 @@ export function ChatSidebar() {
             ))}
         </div>
       </div>
+      <SidebarDivider onClick={toggleCollapsed} />
     </div>
   )
-} 
+}
+
+/** Thin hover-highlighted edge, like ChatGPT/VS Code's sidebar divider — click to collapse/expand. */
+function SidebarDivider({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      aria-label="Toggle sidebar"
+      className="absolute inset-y-0 right-0 w-1 -mr-0.5 cursor-col-resize bg-transparent hover:bg-primary/40 transition-colors"
+    />
+  )
+}
