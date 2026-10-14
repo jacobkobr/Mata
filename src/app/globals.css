@@ -96,6 +96,38 @@
   }
 }
 
+/* Thin, minimal, dark scrollbars everywhere — same look in light and dark
+   theme rather than inverting, since a near-invisible neutral thumb reads
+   fine on either background. Electron is Chromium, so the webkit rules are
+   what actually render; scrollbar-width/-color cover non-Electron (browser
+   preview) fallback. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(0 0% 20% / 0.5) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: hsl(0 0% 20% / 0.5);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: hsl(0 0% 20% / 0.7);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 @layer utilities {
   .app-region-drag {
     -webkit-app-region: drag;
