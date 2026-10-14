@@ -19,7 +19,9 @@ const validChannels = {
     'maximize-window',
     'close-window',
     'toggle-compact-mode',
-    'get-window-mode'
+    'get-window-mode',
+    'toggle-quick-ask',
+    'hide-quick-ask'
   ],
   receive: [
     'system-info',

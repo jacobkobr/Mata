@@ -14,15 +14,19 @@ import { ChatSidebar } from '@/components/chat-sidebar'
 import { WelcomeHeader } from '@/components/welcome-header'
 import { FileUpload } from '@/components/file-upload'
 import { CompactChat } from '@/components/compact-chat'
+import { QuickAsk } from '@/components/quick-ask'
 import { useChatStore } from '@/store/chat-store'
 import { useSettingsStore } from '@/store/settings-store'
 import { useRailStore } from '@/store/rail-store'
 import { useBookmarkStore } from '@/store/bookmark-store'
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts'
+import { useWindowMode } from '@/hooks/use-window-mode'
 
 export default function Home() {
   const [input, setInput] = useState('')
   const [showFileUpload, setShowFileUpload] = useState(false)
+  const windowMode = useWindowMode()
+  const isQuickAskMode = windowMode === 'quickask'
   const [isCompactMode, setIsCompactMode] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const { messages, isLoading, sendMessage } = useChatStore()
@@ -35,15 +39,8 @@ export default function Home() {
   useRailKeybinds({ messages, activeId, scrollToMessage })
 
   useEffect(() => {
-    // Check if we're in compact mode
-    const params = new URLSearchParams(window.location.search)
-    setIsCompactMode(params.get('compact') === 'true')
-
-    // Check current window mode
-    if (window.electron) {
-      window.electron.send('get-window-mode').then(setIsCompactMode)
-    }
-  }, [])
+    if (windowMode === 'compact') setIsCompactMode(true)
+  }, [windowMode])
 
   useKeyboardShortcuts({
     toggleWindow: async () => {
@@ -78,6 +75,10 @@ export default function Home() {
         type: mimeType || 'image/jpeg'
       })
     }
+  }
+
+  if (isQuickAskMode) {
+    return <QuickAsk />
   }
 
   if (isCompactMode) {

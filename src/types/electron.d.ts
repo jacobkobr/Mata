@@ -45,15 +45,17 @@ interface ResourceUsage {
   } | null
 }
 
-type IPCChannels = 
+type IPCChannels =
   | 'get-system-info'
   | 'start-monitoring'
   | 'stop-monitoring'
-  | 'add-message'
-  | 'get-messages'
-  | 'clear-messages'
-  | 'get-settings'
-  | 'update-settings'
+  | 'minimize-window'
+  | 'maximize-window'
+  | 'close-window'
+  | 'toggle-compact-mode'
+  | 'get-window-mode'
+  | 'toggle-quick-ask'
+  | 'hide-quick-ask'
 
 type IPCEvents = 
   | 'system-info'

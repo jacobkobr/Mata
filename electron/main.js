@@ -30,6 +30,7 @@ function debugLog(...args) {
 // Window management
 let mainWindow = null;
 let compactWindow = null;
+let quickAskWindow = null;
 let isCompactMode = false;
 
 // System monitoring
@@ -240,6 +241,25 @@ function initializeIpcHandlers() {
     return isCompactMode;
   });
 
+  // Quick ask — a small always-on-top overlay, independent of compact mode.
+  // Doesn't hide the main window; meant to be summoned/dismissed like a
+  // launcher, not toggled as a persistent alternate view.
+  ipcMain.handle('toggle-quick-ask', () => {
+    if (quickAskWindow && !quickAskWindow.isDestroyed() && quickAskWindow.isVisible()) {
+      quickAskWindow.hide();
+    } else {
+      createQuickAskWindow();
+    }
+    return true;
+  });
+
+  ipcMain.handle('hide-quick-ask', () => {
+    if (quickAskWindow && !quickAskWindow.isDestroyed()) {
+      quickAskWindow.hide();
+    }
+    return true;
+  });
+
   registerChatGPTHandlers(() => mainWindow);
 }
 
@@ -283,7 +303,7 @@ function createCompactWindow() {
     compactWindow.loadURL('http://localhost:3000?compact=true');
     compactWindow.webContents.openDevTools({ mode: 'detach' });
   } else {
-    loadProductionBuild(compactWindow, true);
+    loadProductionBuild(compactWindow, 'compact');
   }
 
   compactWindow.on('closed', () => {
@@ -298,6 +318,61 @@ function createCompactWindow() {
   });
 
   return compactWindow;
+}
+
+function createQuickAskWindow() {
+  if (quickAskWindow && !quickAskWindow.isDestroyed()) {
+    quickAskWindow.show();
+    quickAskWindow.focus();
+    return quickAskWindow;
+  }
+
+  debugLog('Creating quick ask window...');
+
+  const display = require('electron').screen.getPrimaryDisplay();
+  const width = 640;
+  const height = 420;
+
+  quickAskWindow = new BrowserWindow({
+    width,
+    height,
+    x: Math.round((display.workArea.width - width) / 2),
+    y: Math.round(display.workArea.height * 0.22),
+    frame: false,
+    transparent: true,
+    hasShadow: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    resizable: false,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: path.join(__dirname, 'preload.js'),
+      webSecurity: true,
+    },
+    backgroundColor: '#00000000',
+  });
+
+  quickAskWindow.setVisibleOnAllWorkspaces(true);
+  quickAskWindow.setAlwaysOnTop(true, 'screen-saver');
+
+  if (isDev) {
+    quickAskWindow.loadURL('http://localhost:3000?quickask=true');
+  } else {
+    loadProductionBuild(quickAskWindow, 'quickask');
+  }
+
+  quickAskWindow.on('closed', () => {
+    quickAskWindow = null;
+  });
+
+  quickAskWindow.on('blur', () => {
+    if (quickAskWindow && !quickAskWindow.isDestroyed()) {
+      quickAskWindow.hide();
+    }
+  });
+
+  return quickAskWindow;
 }
 
 function createMainWindow() {
@@ -374,18 +449,21 @@ function createMainWindow() {
       }, 1000);
     });
   } else {
-    loadProductionBuild(mainWindow, false);
+    loadProductionBuild(mainWindow);
   }
 
   return mainWindow;
 }
 
-function loadProductionBuild(window, isCompact) {
+// mode: '' for the main window, 'compact', or 'quickask' — each gets its own
+// global flag injected before React mounts, since this is a file:// load with
+// no real query string to read.
+function loadProductionBuild(window, mode = '') {
   try {
     debugLog('Loading production build...');
     const appPath = getAppPath();
     const indexPath = path.join(appPath, 'index.html');
-    
+
     debugLog('Index path:', indexPath);
     debugLog('Index exists:', fs.existsSync(indexPath));
 
@@ -407,12 +485,17 @@ function loadProductionBuild(window, isCompact) {
       .replace(/src="http:\/\/localhost\/icons/g, 'src="local:/icons')
       .replace(/href="http:\/\/localhost\/icons/g, 'href="local:/icons');
 
-    // Add compact mode query parameter
-    const finalHtml = isCompact 
-      ? modifiedHtml.replace('<head>', '<head><script>window.isCompactMode = true;</script>')
+    const modeFlag = mode === 'compact'
+      ? 'window.isCompactMode = true;'
+      : mode === 'quickask'
+        ? 'window.isQuickAskMode = true;'
+        : null;
+
+    const finalHtml = modeFlag
+      ? modifiedHtml.replace('<head>', `<head><script>${modeFlag}</script>`)
       : modifiedHtml;
 
-    const tempIndexPath = path.join(app.getPath('temp'), `mata-index${isCompact ? '-compact' : ''}.html`);
+    const tempIndexPath = path.join(app.getPath('temp'), `mata-index${mode ? `-${mode}` : ''}.html`);
     fs.writeFileSync(tempIndexPath, finalHtml);
     debugLog('Created temp index at:', tempIndexPath);
 
@@ -457,6 +540,20 @@ function registerShortcuts() {
 
   if (!success) {
     console.error('Failed to register global shortcut');
+  }
+
+  // Quick ask overlay — summon/dismiss from anywhere, independent of compact mode.
+  const quickAskSuccess = globalShortcut.register('CommandOrControl+Shift+Space', () => {
+    debugLog('Quick ask shortcut pressed');
+    if (quickAskWindow && !quickAskWindow.isDestroyed() && quickAskWindow.isVisible()) {
+      quickAskWindow.hide();
+    } else {
+      createQuickAskWindow();
+    }
+  });
+
+  if (!quickAskSuccess) {
+    console.error('Failed to register quick ask shortcut');
   }
 }
 
