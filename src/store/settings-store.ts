@@ -22,7 +22,6 @@ interface Settings {
   chatGPTModelSlug?: string
   temperature: number
   maxTokens: number
-  isPopoutMode: boolean
   sidebarCollapsed: boolean
   shortcuts: {
     toggleWindow: string
@@ -47,7 +46,6 @@ const DEFAULT_SETTINGS: Settings = {
   activeProvider: 'ollama',
   temperature: 0.7,
   maxTokens: 2048,
-  isPopoutMode: false,
   sidebarCollapsed: false,
   shortcuts: {
     toggleWindow: 'ctrl+shift+m',

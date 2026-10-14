@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useTheme } from 'next-themes'
-import { ExternalLink, Loader2 } from 'lucide-react'
+import { ExternalLink, Loader2, RefreshCw } from 'lucide-react'
 import type { ChatGPTModel } from '@siwc/local'
 import { useChatGPTSession } from '@/hooks/use-chatgpt-session'
 import { useSettingsStore } from '@/store/settings-store'
@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ToggleField } from '@/components/ui/toggle-field'
 import { toast } from '@/components/ui/use-toast'
+import { cn } from '@/lib/utils'
 
 const CHATGPT_USAGE_URL = 'https://chatgpt.com/settings/usage'
 
@@ -22,29 +23,31 @@ export function ChatGPTTab() {
   const [isLoadingModels, setIsLoadingModels] = useState(false)
 
   const isConnected = session.status === 'connected'
+  const isReauthRequired = session.status === 'reauth_required'
   const isSharing = isConnected && session.sharing
+
+  const loadModels = async () => {
+    setIsLoadingModels(true)
+    try {
+      const list = await window.electron.chatgpt.listModels()
+      setModels(list)
+      if (!chatGPTModelSlug && list[0]) {
+        updateSettings({ chatGPTModelSlug: list[0].slug })
+      }
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Could not load ChatGPT models',
+        description: error instanceof Error ? error.message : undefined,
+      })
+    } finally {
+      setIsLoadingModels(false)
+    }
+  }
 
   useEffect(() => {
     if (!isSharing) return
-    let cancelled = false
-    setIsLoadingModels(true)
-    window.electron.chatgpt.listModels()
-      .then((list) => {
-        if (cancelled) return
-        setModels(list)
-        if (!chatGPTModelSlug && list[0]) {
-          updateSettings({ chatGPTModelSlug: list[0].slug })
-        }
-      })
-      .catch((error) => {
-        toast({
-          variant: 'destructive',
-          title: 'Could not load ChatGPT models',
-          description: error instanceof Error ? error.message : undefined,
-        })
-      })
-      .finally(() => !cancelled && setIsLoadingModels(false))
-    return () => { cancelled = true }
+    loadModels()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSharing])
 
@@ -95,25 +98,30 @@ export function ChatGPTTab() {
         </div>
 
         {!isConnected ? (
-          <button
-            onClick={handleSignIn}
-            disabled={isSigningIn}
-            className="shrink-0 disabled:opacity-60"
-            aria-label="Continue with ChatGPT"
-          >
-            {isSigningIn ? (
-              <div className="flex h-[30px] w-[161px] items-center justify-center rounded-xl border border-border">
-                <Loader2 className="h-4 w-4 animate-spin" />
-              </div>
-            ) : (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={resolvedTheme === 'dark' ? '/chatgpt-brand/sign-in-with-chatgpt-white.svg' : '/chatgpt-brand/sign-in-with-chatgpt-black.svg'}
-                alt="Continue with ChatGPT"
-                height={30}
-              />
+          <div className="flex shrink-0 flex-col items-end gap-1.5">
+            <button
+              onClick={handleSignIn}
+              disabled={isSigningIn}
+              className="shrink-0 disabled:opacity-60"
+              aria-label="Continue with ChatGPT"
+            >
+              {isSigningIn ? (
+                <div className="flex h-[30px] w-[161px] items-center justify-center rounded-xl border border-border">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                </div>
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={resolvedTheme === 'dark' ? '/chatgpt-brand/sign-in-with-chatgpt-white.svg' : '/chatgpt-brand/sign-in-with-chatgpt-black.svg'}
+                  alt="Continue with ChatGPT"
+                  height={30}
+                />
+              )}
+            </button>
+            {isReauthRequired && (
+              <span className="text-xs text-warning">Your connection expired — sign in again to reconnect.</span>
             )}
-          </button>
+          </div>
         ) : (
           <Button variant="outline" onClick={handleSignOut}>Disconnect</Button>
         )}
@@ -163,7 +171,17 @@ export function ChatGPTTab() {
 
               {activeProvider === 'chatgpt' && (
                 <div className="space-y-2 pt-1">
-                  <label className="text-sm font-medium">Model</label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium">Model</label>
+                    <button
+                      onClick={loadModels}
+                      disabled={isLoadingModels}
+                      className="text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+                      title="Refresh model list"
+                    >
+                      <RefreshCw className={cn('h-3.5 w-3.5', isLoadingModels && 'animate-spin')} />
+                    </button>
+                  </div>
                   {isLoadingModels ? (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Loader2 className="h-4 w-4 animate-spin" /> Loading models...

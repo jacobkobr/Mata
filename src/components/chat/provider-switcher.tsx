@@ -34,7 +34,15 @@ export function ProviderSwitcher({ className, dropDirection = 'up' }: ProviderSw
 
   useEffect(() => {
     if (!isSharing) return
-    window.electron.chatgpt.listModels().then(setChatGPTModels).catch(() => {})
+    window.electron.chatgpt.listModels()
+      .then(setChatGPTModels)
+      .catch((error) => {
+        toast({
+          variant: 'destructive',
+          title: 'Could not load ChatGPT models',
+          description: error instanceof Error ? error.message : undefined,
+        })
+      })
   }, [isSharing])
 
   const ollamaModels = AI_MODELS.filter((model) => installedModels.includes(model.id))
