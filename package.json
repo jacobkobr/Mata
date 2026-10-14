@@ -1,6 +1,6 @@
 {
   "name": "mata",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "A modern UI for DeepSeek with Ollama",
   "main": "electron/main.js",
   "workspaces": [
