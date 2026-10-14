@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { v4 as uuidv4 } from 'uuid'
-import { createOllamaProvider, createChatGPTProvider, type Provider } from '@mata/provider-core'
+import { createOllamaProvider, createChatGPTProvider, MODEL_PULL_NAMES, type Provider } from '@mata/provider-core'
 import { AI_MODELS } from '@/lib/config'
 import { useSettingsStore } from './settings-store'
 import * as chatService from '@/lib/chat-service'
@@ -20,6 +20,8 @@ export interface Message {
   content: string
   timestamp: number
   modelId?: string
+  /** Which backend actually answered — mainly useful when activeProvider is 'auto'. */
+  provider?: 'ollama' | 'chatgpt'
 }
 
 interface ChatHistory {
@@ -121,6 +123,17 @@ export const useChatStore = create<ChatState>()((set, get) => {
       }
       provider = chatGPTProvider
       modelId = settings.chatGPTModelSlug
+    } else if (settings.activeProvider === 'auto') {
+      const resolved = await resolveAutoProvider(settings, !!imageData)
+      if (!resolved) {
+        throw new Error(
+          imageData
+            ? 'No local vision model is installed — pull one (e.g. Llama Vision) to analyze images in Auto mode.'
+            : "Auto mode couldn't find a usable model — make sure Ollama is running with a model installed, or sign in with ChatGPT and enable plan sharing."
+        )
+      }
+      provider = resolved.provider
+      modelId = resolved.modelId
     } else {
       const modelConfig = AI_MODELS.find(m => m.id === settings.selectedModel)
       if (!modelConfig) {
@@ -142,6 +155,16 @@ export const useChatStore = create<ChatState>()((set, get) => {
         knowledgeContext: knowledgeContext ? `${knowledgeContext.length} chars` : undefined,
       })
     }
+
+    // Stamp which backend is actually handling this turn onto the in-memory
+    // message right away, so the UI reflects it as it streams — not just
+    // after persisting (useful mainly for Auto mode, where this is dynamic).
+    const resolvedProvider = provider.id as 'ollama' | 'chatgpt'
+    set((state) => ({
+      messages: state.messages.map(msg =>
+        msg.id === assistantMessageId ? { ...msg, modelId, provider: resolvedProvider } : msg
+      ),
+    }))
 
     abortController = new AbortController()
     const { signal } = abortController
@@ -180,6 +203,7 @@ export const useChatStore = create<ChatState>()((set, get) => {
           id: assistantMessageId,
           timestamp: Date.now(),
           modelId,
+          provider: resolvedProvider,
         }
         await chatService.addMessage(stoppedMessage)
         await indexMessage(stoppedMessage)
@@ -195,9 +219,42 @@ export const useChatStore = create<ChatState>()((set, get) => {
       id: assistantMessageId,
       timestamp: Date.now(),
       modelId,
+      provider: resolvedProvider,
     }
     await chatService.addMessage(finalMessage)
     await indexMessage(finalMessage)
+  }
+
+  /**
+   * Auto mode: prefer the locally selected Ollama model, but only if Ollama is
+   * actually running AND that model is actually pulled — otherwise fall back
+   * to ChatGPT (when signed in with sharing enabled). Images never go to
+   * ChatGPT (the API can't accept them), so an image-attached turn only ever
+   * considers a local vision model.
+   */
+  async function resolveAutoProvider(
+    settings: ReturnType<typeof useSettingsStore.getState>,
+    hasImage: boolean
+  ): Promise<{ provider: Provider; modelId: string } | null> {
+    const ollamaStatus = await ollamaProvider.checkStatus()
+    if (ollamaStatus.available) {
+      const installed = await ollamaProvider.listModels()
+      const installedTags = new Set(installed.map(m => m.id))
+      const candidateModelId = hasImage ? 'llama-vision' : settings.selectedModel
+      const pullName = MODEL_PULL_NAMES[candidateModelId]
+      if (pullName && installedTags.has(pullName)) {
+        return { provider: ollamaProvider, modelId: candidateModelId }
+      }
+    }
+
+    if (!hasImage && chatGPTProvider && settings.chatGPTModelSlug) {
+      const chatGPTStatus = await chatGPTProvider.checkStatus()
+      if (chatGPTStatus.available) {
+        return { provider: chatGPTProvider, modelId: settings.chatGPTModelSlug }
+      }
+    }
+
+    return null
   }
 
   return {

@@ -121,6 +121,9 @@ export function ChatMessage({ message, isCompact = false, isLast = false }: Chat
       </button>
       <span className={cn('text-muted-foreground', isCompact ? 'text-[10px]' : 'text-xs')}>
         {new Date(message.timestamp).toLocaleTimeString()}
+        {message.role === 'assistant' && message.provider && (
+          <> · {message.provider === 'chatgpt' ? 'ChatGPT' : 'Local'}</>
+        )}
       </span>
     </div>
   )

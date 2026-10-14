@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Check, ChevronDown, Loader2 } from 'lucide-react'
+import { Check, ChevronDown, Loader2, Sparkles } from 'lucide-react'
 import type { ChatGPTModel } from '@siwc/local'
 import { AI_MODELS } from '@/lib/config'
 import { useSettingsStore } from '@/store/settings-store'
@@ -49,9 +49,11 @@ export function ProviderSwitcher({ className, dropDirection = 'up' }: ProviderSw
   const currentChatGPTModel = chatGPTModels.find((m) => m.slug === chatGPTModelSlug)
 
   const currentLabel =
-    activeProvider === 'chatgpt'
-      ? `ChatGPT · ${currentChatGPTModel?.displayName ?? chatGPTModelSlug ?? 'Select model'}`
-      : `Local · ${AI_MODELS.find((m) => m.id === selectedModel)?.name ?? 'Select model'}`
+    activeProvider === 'auto'
+      ? 'Auto · prefers Local'
+      : activeProvider === 'chatgpt'
+        ? `ChatGPT · ${currentChatGPTModel?.displayName ?? chatGPTModelSlug ?? 'Select model'}`
+        : `Local · ${AI_MODELS.find((m) => m.id === selectedModel)?.name ?? 'Select model'}`
 
   const handleSignIn = async () => {
     setIsSigningIn(true)
@@ -66,6 +68,11 @@ export function ProviderSwitcher({ className, dropDirection = 'up' }: ProviderSw
     } finally {
       setIsSigningIn(false)
     }
+  }
+
+  const selectAuto = () => {
+    updateSettings({ activeProvider: 'auto' })
+    setIsOpen(false)
   }
 
   const selectOllama = (modelId: string) => {
@@ -97,7 +104,21 @@ export function ProviderSwitcher({ className, dropDirection = 'up' }: ProviderSw
               dropDirection === 'up' ? 'bottom-full mb-2' : 'top-full mt-2'
             )}
           >
-            <div className="px-2 py-1 text-xs font-medium text-muted-foreground">Local (Ollama)</div>
+            <button
+              onClick={selectAuto}
+              className={cn(
+                'flex w-full items-center justify-between rounded-md px-2 py-1.5 text-sm hover:bg-accent',
+                activeProvider === 'auto' && 'bg-accent'
+              )}
+            >
+              <span className="flex items-center gap-2">
+                <Sparkles className="h-3.5 w-3.5" />
+                Auto — use Local when possible
+              </span>
+              {activeProvider === 'auto' && <Check className="h-4 w-4 shrink-0" />}
+            </button>
+
+            <div className="mt-1 border-t border-border px-2 pt-2 pb-1 text-xs font-medium text-muted-foreground">Local (Ollama)</div>
             {ollamaModels.length === 0 ? (
               <div className="px-2 py-1.5 text-sm text-muted-foreground">No models installed</div>
             ) : (

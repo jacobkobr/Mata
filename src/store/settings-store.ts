@@ -17,8 +17,14 @@ export interface AdvancedSettings {
 
 interface Settings {
   selectedModel: ModelId
-  /** 'chatgpt' uses the signed-in ChatGPT plan via chatGPTModelSlug instead of the Ollama catalog. */
-  activeProvider: 'ollama' | 'chatgpt'
+  /**
+   * 'chatgpt' uses the signed-in ChatGPT plan via chatGPTModelSlug instead of the
+   * Ollama catalog. 'auto' prefers the locally selected Ollama model when it's
+   * actually installed and Ollama is running, and falls back to ChatGPT only
+   * when it isn't (and never for messages with an image attached, since the
+   * ChatGPT API this app uses can't accept images at all).
+   */
+  activeProvider: 'ollama' | 'chatgpt' | 'auto'
   chatGPTModelSlug?: string
   temperature: number
   maxTokens: number
