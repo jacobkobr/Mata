@@ -260,6 +260,17 @@ function initializeIpcHandlers() {
     return true;
   });
 
+  // Grows the window in place (same top-left corner) when the quick-ask
+  // conversation expands past just the input bar. Only called once per
+  // session by the renderer, and never overrides a size the user set by
+  // hand afterward.
+  ipcMain.handle('resize-quick-ask', (event, width, height) => {
+    if (!quickAskWindow || quickAskWindow.isDestroyed()) return false;
+    const bounds = quickAskWindow.getBounds();
+    quickAskWindow.setBounds({ x: bounds.x, y: bounds.y, width, height });
+    return true;
+  });
+
   registerChatGPTHandlers(() => mainWindow);
 }
 
@@ -330,20 +341,24 @@ function createQuickAskWindow() {
   debugLog('Creating quick ask window...');
 
   const display = require('electron').screen.getPrimaryDisplay();
+  // Starts small (just the input bar); the renderer asks us to grow it via
+  // resize-quick-ask once a conversation actually starts.
   const width = 640;
-  const height = 420;
+  const height = 130;
 
   quickAskWindow = new BrowserWindow({
     width,
     height,
     x: Math.round((display.workArea.width - width) / 2),
-    y: Math.round(display.workArea.height * 0.22),
+    y: Math.round(display.workArea.height * 0.2),
     frame: false,
     transparent: true,
-    hasShadow: false,
+    hasShadow: true,
     alwaysOnTop: true,
     skipTaskbar: true,
-    resizable: false,
+    resizable: true,
+    minWidth: 420,
+    minHeight: 130,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -353,7 +368,7 @@ function createQuickAskWindow() {
     backgroundColor: '#00000000',
   });
 
-  quickAskWindow.setVisibleOnAllWorkspaces(true);
+  quickAskWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   quickAskWindow.setAlwaysOnTop(true, 'screen-saver');
 
   if (isDev) {
@@ -364,12 +379,6 @@ function createQuickAskWindow() {
 
   quickAskWindow.on('closed', () => {
     quickAskWindow = null;
-  });
-
-  quickAskWindow.on('blur', () => {
-    if (quickAskWindow && !quickAskWindow.isDestroyed()) {
-      quickAskWindow.hide();
-    }
   });
 
   return quickAskWindow;

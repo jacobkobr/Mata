@@ -21,7 +21,8 @@ const validChannels = {
     'toggle-compact-mode',
     'get-window-mode',
     'toggle-quick-ask',
-    'hide-quick-ask'
+    'hide-quick-ask',
+    'resize-quick-ask'
   ],
   receive: [
     'system-info',

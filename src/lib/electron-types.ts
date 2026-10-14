@@ -3,7 +3,7 @@ import type { ChatGPTModel, LoginProfile, ResponseInputMessage, SessionState, Si
 
 export interface ElectronWindow {
   // Window controls
-  send: (channel: string) => Promise<boolean>
+  send: (channel: string, ...args: any[]) => Promise<any>
   receive: (channel: string, func: (...args: any[]) => void) => void
   removeListener: (channel: string, func: (...args: any[]) => void) => void
   // Storage methods

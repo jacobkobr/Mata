@@ -56,6 +56,7 @@ type IPCChannels =
   | 'get-window-mode'
   | 'toggle-quick-ask'
   | 'hide-quick-ask'
+  | 'resize-quick-ask'
 
 type IPCEvents = 
   | 'system-info'
