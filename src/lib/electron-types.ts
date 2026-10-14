@@ -1,4 +1,5 @@
 import type { DBChat, DBMessage } from './types'
+import type { ChatGPTModel, LoginProfile, ResponseInputMessage, SessionState, SignInOptions } from '@siwc/local'
 
 export interface ElectronWindow {
   // Window controls
@@ -13,6 +14,25 @@ export interface ElectronWindow {
     deleteChat: (chatId: string) => Promise<boolean>
     getChatMessages: (chatId: string) => Promise<DBMessage[]>
     addMessage: (message: DBMessage) => Promise<boolean>
+  }
+  // Sign in with ChatGPT — session state and chat text only, never tokens.
+  chatgpt: {
+    signIn: (options?: SignInOptions) => Promise<SessionState>
+    cancelSignIn: () => Promise<void>
+    signOut: () => Promise<void>
+    getSession: () => Promise<SessionState>
+    listProfiles: () => Promise<LoginProfile[]>
+    selectProfile: (profileId: string) => Promise<SessionState>
+    listModels: () => Promise<ChatGPTModel[]>
+    streamResponse: (payload: {
+      requestId: string
+      model: string
+      input: string | ResponseInputMessage[]
+      instructions?: string
+    }) => Promise<{ text: string }>
+    cancelStream: (requestId: string) => Promise<void>
+    onSessionChanged: (callback: (session: SessionState) => void) => () => void
+    onStreamChunk: (callback: (payload: { requestId: string; delta: string }) => void) => () => void
   }
 }
 

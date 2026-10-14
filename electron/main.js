@@ -6,6 +6,16 @@ const { URL } = require('url');
 const os = require('os');
 const si = require('systeminformation');
 
+// Electron 28 bundles Node 18, where the Web Crypto API isn't exposed as a global
+// by default (that only became default in Node 19+). jose — used by @siwc/local
+// for ID-token signature verification — needs globalThis.crypto; without this,
+// every sign-in fails with a misleadingly generic "temporarily unavailable" error.
+if (!globalThis.crypto) {
+  globalThis.crypto = require('node:crypto').webcrypto;
+}
+
+const { registerChatGPTHandlers } = require('./chatgpt-client');
+
 // Development mode check using app.isPackaged
 const isDev = !app.isPackaged;
 
@@ -229,6 +239,8 @@ function initializeIpcHandlers() {
   ipcMain.handle('get-window-mode', () => {
     return isCompactMode;
   });
+
+  registerChatGPTHandlers(() => mainWindow);
 }
 
 function createCompactWindow() {

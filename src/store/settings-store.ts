@@ -10,27 +10,20 @@ interface ModelKnowledge {
   enabled: boolean
 }
 
-interface AdvancedSettings {
+export interface AdvancedSettings {
   modelKnowledge: ModelKnowledge[]
-  contextWindow: number
-  streamingEnabled: boolean
   debugMode: boolean
-  customSystemPrompts: Record<string, string>
-  experimentalFeatures: {
-    parallelInference: boolean
-    enhancedTokenization: boolean
-    contextCompression: boolean
-  }
-  // Performance Optimization
-  gpuAcceleration: boolean
-  memoryManagement: boolean
 }
 
 interface Settings {
   selectedModel: ModelId
+  /** 'chatgpt' uses the signed-in ChatGPT plan via chatGPTModelSlug instead of the Ollama catalog. */
+  activeProvider: 'ollama' | 'chatgpt'
+  chatGPTModelSlug?: string
   temperature: number
   maxTokens: number
   isPopoutMode: boolean
+  sidebarCollapsed: boolean
   shortcuts: {
     toggleWindow: string
     newChat: string
@@ -51,9 +44,11 @@ interface SettingsState extends Settings {
 
 const DEFAULT_SETTINGS: Settings = {
   selectedModel: DEFAULT_MODEL,
+  activeProvider: 'ollama',
   temperature: 0.7,
   maxTokens: 2048,
   isPopoutMode: false,
+  sidebarCollapsed: false,
   shortcuts: {
     toggleWindow: 'ctrl+shift+m',
     newChat: 'ctrl+n',
@@ -62,18 +57,7 @@ const DEFAULT_SETTINGS: Settings = {
   },
   advancedSettings: {
     modelKnowledge: [],
-    contextWindow: 4096,
-    streamingEnabled: true,
     debugMode: false,
-    customSystemPrompts: {},
-    experimentalFeatures: {
-      parallelInference: false,
-      enhancedTokenization: false,
-      contextCompression: false
-    },
-    // Performance Optimization
-    gpuAcceleration: true,
-    memoryManagement: true
   }
 }
 

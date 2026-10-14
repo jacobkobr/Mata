@@ -15,11 +15,6 @@ const validChannels = {
     'get-system-info',
     'start-monitoring',
     'stop-monitoring',
-    'add-message',
-    'get-messages',
-    'clear-messages',
-    'get-settings',
-    'update-settings',
     'minimize-window',
     'maximize-window',
     'close-window',
@@ -32,6 +27,16 @@ const validChannels = {
     'window-maximized'
   ]
 };
+
+// Unwraps the main process's {ok, value} / {ok: false, error} result shape into a
+// plain return value or a thrown Error carrying the original error's code/retryable
+// fields (thrown Error objects alone lose custom properties over Electron IPC).
+function unwrap(result) {
+  if (result.ok) return result.value;
+  const error = new Error(result.error.message);
+  Object.assign(error, result.error);
+  throw error;
+}
 
 try {
   debugLog('Initializing IPC bridge...');
@@ -59,7 +64,7 @@ try {
       receive: (channel, func) => {
         debugLog('Setting up receiver for channel:', channel);
         if (validChannels.receive.includes(channel)) {
-          // Deliberately strip event as it includes `sender` 
+          // Deliberately strip event as it includes `sender`
           ipcRenderer.on(channel, (event, ...args) => {
             debugLog('Received on channel:', channel, 'with args:', args);
             func(...args);
@@ -132,6 +137,29 @@ try {
             throw error;
           }
         }
+      },
+      // Sign in with ChatGPT — renderer only ever sees session state and chat
+      // text, never OAuth tokens.
+      chatgpt: {
+        signIn: async (options) => unwrap(await ipcRenderer.invoke('chatgpt-sign-in', options)),
+        cancelSignIn: async () => unwrap(await ipcRenderer.invoke('chatgpt-cancel-sign-in')),
+        signOut: async () => unwrap(await ipcRenderer.invoke('chatgpt-sign-out')),
+        getSession: async () => unwrap(await ipcRenderer.invoke('chatgpt-get-session')),
+        listProfiles: async () => unwrap(await ipcRenderer.invoke('chatgpt-list-profiles')),
+        selectProfile: async (profileId) => unwrap(await ipcRenderer.invoke('chatgpt-select-profile', profileId)),
+        listModels: async () => unwrap(await ipcRenderer.invoke('chatgpt-list-models')),
+        streamResponse: async (payload) => unwrap(await ipcRenderer.invoke('chatgpt-stream-response', payload)),
+        cancelStream: async (requestId) => ipcRenderer.invoke('chatgpt-cancel-stream', requestId),
+        onSessionChanged: (callback) => {
+          const listener = (event, session) => callback(session);
+          ipcRenderer.on('chatgpt-session-changed', listener);
+          return () => ipcRenderer.removeListener('chatgpt-session-changed', listener);
+        },
+        onStreamChunk: (callback) => {
+          const listener = (event, payload) => callback(payload);
+          ipcRenderer.on('chatgpt-stream-chunk', listener);
+          return () => ipcRenderer.removeListener('chatgpt-stream-chunk', listener);
+        },
       }
     }
   );
@@ -139,4 +167,4 @@ try {
   debugLog('IPC bridge initialized successfully');
 } catch (error) {
   console.error('Failed to initialize IPC bridge:', error);
-} 
+}

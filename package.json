@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "A modern UI for DeepSeek with Ollama",
   "main": "electron/main.js",
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -13,7 +16,10 @@
     "pack": "next build && electron-builder --dir",
     "dist": "rimraf dist && rimraf out && next build && electron-builder --win --publish never",
     "release": "next build && electron-builder --publish=always",
-    "test-rag": "ts-node src/test-rag.ts"
+    "test-rag": "ts-node src/test-rag.ts",
+    "build:siwc-local": "tsc -p packages/siwc-local/tsconfig.local-build.json",
+    "predev": "npm run build:siwc-local",
+    "prebuild": "npm run build:siwc-local"
   },
   "build": {
     "appId": "com.jacobkobr.mata",
@@ -64,11 +70,13 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^3.3.4",
+    "@mata/provider-core": "github:jacobkobr/mata-provider-core",
     "@radix-ui/react-dialog": "^1.0.5",
     "@radix-ui/react-dropdown-menu": "^2.0.6",
     "@radix-ui/react-slot": "^1.0.2",
     "@radix-ui/react-toast": "^1.1.5",
-    "@types/react-katex": "^3.0.4",
+    "@radix-ui/react-tooltip": "^1.0.7",
+    "@siwc/local": "*",
     "@types/uuid": "^10.0.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
@@ -80,8 +88,8 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-hook-form": "^7.50.1",
-    "react-katex": "^3.0.1",
     "react-markdown": "^9.0.3",
+    "rehype-katex": "^7.0.1",
     "remark-gfm": "^4.0.0",
     "remark-math": "^6.0.0",
     "systeminformation": "^5.25.11",
@@ -101,7 +109,6 @@
     "css-loader": "^7.1.2",
     "electron": "^28.2.0",
     "electron-builder": "^25.1.8",
-    "electron-packager": "^17.1.2",
     "eslint": "^8.56.0",
     "eslint-config-next": "^14.1.0",
     "postcss": "^8.4.35",
