@@ -13,21 +13,18 @@ export function useKeyboardShortcuts(handlers: ShortcutHandlers) {
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
-      // Don't trigger shortcuts when typing in input fields
+      // Don't trigger shortcuts when typing in input fields — notably, this
+      // used to carve out an exception letting '/' trigger focusInput even
+      // while already focused on an empty composer, which ate the character
+      // before it could ever land in the textarea. That made it impossible
+      // to type a slash command as the first character of a message, so the
+      // carve-out is gone: refocusing an already-focused element was a
+      // no-op anyway.
       if (
         event.target instanceof HTMLInputElement ||
         event.target instanceof HTMLTextAreaElement
       ) {
-        // Allow the '/' shortcut to work even in input fields if it's at the start
-        if (
-          !(
-            event.key === '/' &&
-            handlers.focusInput &&
-            (event.target as HTMLInputElement | HTMLTextAreaElement).value === ''
-          )
-        ) {
-          return
-        }
+        return
       }
 
       const pressedKey = [

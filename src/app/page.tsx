@@ -1,12 +1,14 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { X } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { Composer } from '@/components/chat/composer'
 import { MessageList } from '@/components/chat/message-list'
 import { MessageRail } from '@/components/chat/message-rail'
 import { ProviderSwitcher } from '@/components/chat/provider-switcher'
+import { SlashCommandMenu } from '@/components/chat/slash-command-menu'
+import { TemplateVariableForm } from '@/components/chat/template-variable-form'
 import { useMessageRail } from '@/hooks/use-message-rail'
 import { useRailKeybinds } from '@/hooks/use-rail-keybinds'
 import { BookmarkExportDialog } from '@/components/chat/bookmark-export-dialog'
@@ -18,8 +20,16 @@ import { QuickAsk } from '@/components/quick-ask'
 import { useChatStore } from '@/store/chat-store'
 import { useRailStore } from '@/store/rail-store'
 import { useBookmarkStore } from '@/store/bookmark-store'
+import { usePromptTemplateStore } from '@/store/prompt-template-store'
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts'
 import { useWindowMode } from '@/hooks/use-window-mode'
+import {
+  matchingTemplates,
+  parseSlashCommand,
+  expandTemplate,
+  getUserVariables,
+  type PromptTemplate,
+} from '@/lib/prompt-templates'
 
 export default function Home() {
   const [input, setInput] = useState('')
@@ -33,6 +43,72 @@ export default function Home() {
   const { containerRef, registerMessageRef, scrollToMessage, activeId } = useMessageRail(messages.map(m => m.id))
   const quickBookmarkColor = useRailStore((state) => state.quickBookmarkColor)
   const toggleBookmark = useBookmarkStore((state) => state.toggleBookmark)
+  const templates = usePromptTemplateStore((state) => state.templates)
+
+  // Slash-command autocomplete: tracked only while the composer holds just
+  // "/" + a partial trigger name (no space yet) — once a space is typed the
+  // menu closes and resolution happens at send time instead (see handleSubmit).
+  const [activeSlashIndex, setActiveSlashIndex] = useState(0)
+  const [variableFormTemplate, setVariableFormTemplate] = useState<PromptTemplate | null>(null)
+  const [variableFormVars, setVariableFormVars] = useState<string[]>([])
+
+  const slashQuery = useMemo(() => {
+    const match = input.match(/^\/([A-Za-z0-9_-]*)$/)
+    return match ? match[1] : null
+  }, [input])
+  const matchedTemplates = useMemo(
+    () => (slashQuery !== null ? matchingTemplates(templates, slashQuery) : []),
+    [slashQuery, templates]
+  )
+
+  useEffect(() => {
+    setActiveSlashIndex(0)
+  }, [slashQuery])
+
+  const applyTemplateSelection = (template: PromptTemplate) => {
+    const vars = getUserVariables(template.body)
+    if (vars.length === 0) {
+      setInput(expandTemplate(template.body, {}))
+    } else if (vars.length === 1) {
+      // Lets the user keep typing right after the trigger as the variable's
+      // value — resolved against the rest of the text at send time.
+      setInput(`/${template.trigger} `)
+    } else {
+      setInput('')
+      setVariableFormTemplate(template)
+      setVariableFormVars(vars)
+    }
+  }
+
+  // Capture phase so this runs before the composer's own Enter-submits-the-form
+  // handler — otherwise selecting a template from the menu would also submit
+  // whatever was in the box.
+  useEffect(() => {
+    const el = inputRef.current
+    if (!el || matchedTemplates.length === 0) return
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        e.stopPropagation()
+        setActiveSlashIndex((i) => (i + 1) % matchedTemplates.length)
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        e.stopPropagation()
+        setActiveSlashIndex((i) => (i - 1 + matchedTemplates.length) % matchedTemplates.length)
+      } else if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault()
+        e.stopPropagation()
+        applyTemplateSelection(matchedTemplates[activeSlashIndex] ?? matchedTemplates[0])
+      } else if (e.key === 'Escape') {
+        e.preventDefault()
+        e.stopPropagation()
+        setInput('')
+      }
+    }
+    el.addEventListener('keydown', handleKeyDown, true)
+    return () => el.removeEventListener('keydown', handleKeyDown, true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matchedTemplates, activeSlashIndex])
 
   useRailKeybinds({ messages, activeId, scrollToMessage })
 
@@ -54,11 +130,32 @@ export default function Home() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!input.trim()) return
+    const trimmed = input.trim()
 
-    const content = input.trim()
+    const parsed = parseSlashCommand(trimmed, templates)
+    if (parsed) {
+      if (parsed.userVariables.length === 0) {
+        setInput('')
+        queueMessage(expandTemplate(parsed.template.body, {}))
+        return
+      }
+      if (parsed.userVariables.length === 1) {
+        setInput('')
+        queueMessage(expandTemplate(parsed.template.body, { [parsed.userVariables[0]]: parsed.rest }))
+        return
+      }
+      // More than one blank to fill in and the menu wasn't used to collect
+      // them — ask for them explicitly instead of sending "/trigger ..." as
+      // literal text.
+      setInput('')
+      setVariableFormTemplate(parsed.template)
+      setVariableFormVars(parsed.userVariables)
+      return
+    }
+
     setInput('')
     // Queues behind the in-flight reply instead of being blocked when isLoading.
-    queueMessage(content)
+    queueMessage(trimmed)
   }
 
   const handleFileContent = async (content: string, type: 'text' | 'image', mimeType?: string) => {
@@ -126,6 +223,15 @@ export default function Home() {
               </div>
             ) : null}
 
+            {matchedTemplates.length > 0 && (
+              <SlashCommandMenu
+                templates={matchedTemplates}
+                activeIndex={activeSlashIndex}
+                onSelect={applyTemplateSelection}
+                onHover={setActiveSlashIndex}
+              />
+            )}
+
             {queuedMessages.length > 0 && (
               <div className="mb-2 flex flex-col gap-1">
                 {queuedMessages.map((msg, index) => (
@@ -161,6 +267,17 @@ export default function Home() {
           </div>
         </div>
       </div>
+
+      <TemplateVariableForm
+        template={variableFormTemplate}
+        variables={variableFormVars}
+        onClose={() => setVariableFormTemplate(null)}
+        onExpand={(expanded) => {
+          setInput(expanded)
+          setVariableFormTemplate(null)
+          inputRef.current?.focus()
+        }}
+      />
     </div>
   )
 }
