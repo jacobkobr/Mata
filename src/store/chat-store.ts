@@ -3,9 +3,11 @@ import { v4 as uuidv4 } from 'uuid'
 import { createOllamaProvider, createChatGPTProvider, MODEL_PULL_NAMES, type Provider } from '@mata/provider-core'
 import { AI_MODELS } from '@/lib/config'
 import { useSettingsStore } from './settings-store'
+import { useMemoryStore } from './memory-store'
 import * as chatService from '@/lib/chat-service'
 import type { DBChat, DBFolder, DBMessage } from '@/lib/types'
 import { indexMessage, clearChatIndex, clearAllIndices, searchMessages } from '@/lib/indexing-service'
+import { detectMemoryRequest } from '@/lib/memory-detection'
 import { toast } from '@/components/ui/use-toast'
 
 const ollamaProvider = createOllamaProvider()
@@ -132,10 +134,24 @@ export const useChatStore = create<ChatState>()((set, get) => {
   ): Promise<void> {
     const settings = useSettingsStore.getState()
 
-    const knowledgeContext = settings.advancedSettings.modelKnowledge
+    const staticKnowledge = settings.advancedSettings.modelKnowledge
       .filter(k => k.enabled)
       .map(k => k.content)
       .join('\n')
+
+    // Memory facts are cross-conversation (Settings > Memory), separate from
+    // the static knowledge snippets above — both end up in the same context
+    // string since that's all GenerateRequest.knowledgeContext accepts, but
+    // memory stays its own store so it can be added to mid-conversation
+    // without touching the curated knowledge list.
+    const memoryFacts = useMemoryStore.getState().memories
+      .filter(m => m.enabled)
+      .map(m => m.content)
+    const memoryContext = memoryFacts.length
+      ? `Known facts about the user, remembered from past conversations:\n${memoryFacts.map(f => `- ${f}`).join('\n')}`
+      : ''
+
+    const knowledgeContext = [staticKnowledge, memoryContext].filter(Boolean).join('\n\n')
 
     let provider: Provider
     let modelId: string
@@ -514,6 +530,17 @@ export const useChatStore = create<ChatState>()((set, get) => {
       // Save user message to storage
       await chatService.addMessage({ ...userMessage })
       await indexMessage({ ...userMessage })
+
+      // Explicit "remember that..." phrasing gets captured into cross-chat
+      // memory right away — no need to wait for the reply.
+      const rememberedFact = detectMemoryRequest(content)
+      if (rememberedFact) {
+        useMemoryStore.getState().addMemory(rememberedFact, 'detected')
+        toast({
+          title: 'Added to memory',
+          description: rememberedFact.length > 80 ? `${rememberedFact.slice(0, 80)}...` : rememberedFact,
+        })
+      }
 
       const assistantMessage: Message = {
         role: 'assistant',

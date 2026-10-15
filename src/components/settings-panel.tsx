@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import { Modal, ModalContent, ModalHeader, ModalTitle } from '@/components/ui/modal'
 import { GeneralTab } from '@/components/settings/general-tab'
 import { KnowledgeTab } from '@/components/settings/knowledge-tab'
+import { MemoryTab } from '@/components/settings/memory-tab'
 import { ChatGPTTab } from '@/components/settings/chatgpt-tab'
 import { MessageRailTab } from '@/components/settings/message-rail-tab'
 import { HardwareMonitor } from './hardware-monitor'
@@ -14,6 +15,7 @@ const TABS = [
   { id: 'general', label: 'General' },
   { id: 'rail', label: 'Message Rail' },
   { id: 'knowledge', label: 'Knowledge' },
+  { id: 'memory', label: 'Memory' },
   { id: 'chatgpt', label: 'ChatGPT' },
   { id: 'hardware', label: 'Hardware' },
 ] as const
@@ -60,6 +62,7 @@ export function SettingsPanel() {
           {activeTab === 'general' && <GeneralTab />}
           {activeTab === 'rail' && <MessageRailTab />}
           {activeTab === 'knowledge' && <KnowledgeTab />}
+          {activeTab === 'memory' && <MemoryTab />}
           {activeTab === 'chatgpt' && <ChatGPTTab />}
           {activeTab === 'hardware' && <HardwareMonitor />}
         </div>

@@ -5,13 +5,15 @@ import { Message, useChatStore } from '@/store/chat-store'
 import { cn } from '@/lib/utils'
 import ReactMarkdown from 'react-markdown'
 import type { Components } from 'react-markdown'
-import { AlertCircle, ChevronRight, Star, Copy, Check, Pencil, RotateCcw, Trash2, X } from 'lucide-react'
+import { AlertCircle, ChevronRight, Star, Copy, Check, Pencil, RotateCcw, Trash2, X, BrainCircuit } from 'lucide-react'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
 import 'katex/dist/katex.min.css'
 import { useBookmarkStore } from '@/store/bookmark-store'
 import { useRailStore } from '@/store/rail-store'
+import { useMemoryStore } from '@/store/memory-store'
+import { toast } from '@/components/ui/use-toast'
 
 interface ChatMessageProps {
   message: Message
@@ -55,6 +57,17 @@ export function ChatMessage({ message, isCompact = false, isLast = false }: Chat
     setTimeout(() => setCopied(false), 1500)
   }
 
+  const addMemory = useMemoryStore((state) => state.addMemory)
+  const handleSaveMemory = () => {
+    // Memory facts are meant to be short — a whole message isn't "a fact",
+    // so this captures a usable chunk rather than silently truncating later.
+    const MAX_LENGTH = 300
+    const fact = cleanContent.length > MAX_LENGTH ? `${cleanContent.slice(0, MAX_LENGTH)}...` : cleanContent
+    if (!fact.trim()) return
+    addMemory(fact, 'message')
+    toast({ title: 'Saved to memory', description: 'Available in every future conversation.' })
+  }
+
   const handleStartEdit = () => {
     setEditValue(message.content)
     setIsEditing(true)
@@ -96,6 +109,11 @@ export function ChatMessage({ message, isCompact = false, isLast = false }: Chat
       <button onClick={handleCopy} className={buttonClass} title="Copy">
         {copied ? <Check className={iconSize} /> : <Copy className={iconSize} />}
       </button>
+      {!isError && (
+        <button onClick={handleSaveMemory} className={buttonClass} title="Save to memory">
+          <BrainCircuit className={iconSize} />
+        </button>
+      )}
       {isUser && (
         <button onClick={handleStartEdit} disabled={isLoading} className={buttonClass} title="Edit and resend">
           <Pencil className={iconSize} />
