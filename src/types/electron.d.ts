@@ -64,6 +64,7 @@ type IPCEvents =
   | 'window-maximized'
 
 import type { ChatGPTModel, LoginProfile, ResponseInputMessage, SessionState, SignInOptions } from '@siwc/local'
+import type { AttachmentPickResult } from '@/lib/types'
 
 interface ElectronAPI {
   send<T = unknown>(channel: IPCChannels, ...args: any[]): Promise<T>
@@ -100,6 +101,9 @@ interface ElectronAPI {
     cancelStream(requestId: string): Promise<void>
     onSessionChanged(callback: (session: SessionState) => void): () => void
     onStreamChunk(callback: (payload: { requestId: string; delta: string }) => void): () => void
+  }
+  attachments: {
+    pick(): Promise<AttachmentPickResult>
   }
 }
 

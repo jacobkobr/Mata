@@ -213,6 +213,18 @@ try {
           ipcRenderer.on('chatgpt-stream-chunk', listener);
           return () => ipcRenderer.removeListener('chatgpt-stream-chunk', listener);
         },
+      },
+      // File/folder attachment — reading happens entirely in the main process;
+      // the renderer only ever gets back text content, never raw fs access.
+      attachments: {
+        pick: async () => {
+          try {
+            return await ipcRenderer.invoke('pick-attachment');
+          } catch (error) {
+            console.error('Failed to pick attachment:', error);
+            throw error;
+          }
+        },
       }
     }
   );

@@ -24,4 +24,19 @@ export interface DBFolder {
   name: string
   color?: string
   createdAt: number
+}
+
+export interface AttachmentPickResult {
+  canceled: boolean
+  isDirectory?: boolean
+  path?: string
+  name?: string
+  content?: string
+  sensitiveFiles?: string[]
+  truncated?: boolean
+  totalBytes?: number
+  includedBytes?: number
+  fileCount?: number
+  skippedBinaryCount?: number
+  error?: string
 } 

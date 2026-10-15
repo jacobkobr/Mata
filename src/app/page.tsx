@@ -9,6 +9,7 @@ import { MessageRail } from '@/components/chat/message-rail'
 import { ProviderSwitcher } from '@/components/chat/provider-switcher'
 import { SlashCommandMenu } from '@/components/chat/slash-command-menu'
 import { TemplateVariableForm } from '@/components/chat/template-variable-form'
+import { AttachmentPicker } from '@/components/chat/attachment-picker'
 import { useMessageRail } from '@/hooks/use-message-rail'
 import { useRailKeybinds } from '@/hooks/use-rail-keybinds'
 import { BookmarkExportDialog } from '@/components/chat/bookmark-export-dialog'
@@ -171,6 +172,12 @@ export default function Home() {
     }
   }
 
+  const handleAttachment = (content: string, name: string, isDirectory: boolean) => {
+    queueMessage(
+      `Please review the following ${isDirectory ? 'files' : 'file'} (${name}):\n\n\`\`\`\n${content}\n\`\`\``
+    )
+  }
+
   if (isQuickAskMode) {
     return <QuickAsk />
   }
@@ -210,8 +217,12 @@ export default function Home() {
         {/* Input Area */}
         <div className="border-t border-border bg-card/50 backdrop-blur-sm p-4 sticky bottom-0">
           <div className="max-w-3xl mx-auto">
-            <div className="mb-2 flex justify-start">
+            <div className="mb-2 flex items-center justify-between">
               <ProviderSwitcher />
+              <AttachmentPicker
+                onAttach={handleAttachment}
+                className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              />
             </div>
 
             {showFileUpload ? (

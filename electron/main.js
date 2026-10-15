@@ -15,6 +15,7 @@ if (!globalThis.crypto) {
 }
 
 const { registerChatGPTHandlers } = require('./chatgpt-client');
+const { pickAttachment } = require('./attachments');
 
 // Development mode check using app.isPackaged
 const isDev = !app.isPackaged;
@@ -172,6 +173,10 @@ function initializeIpcHandlers() {
   ipcMain.handle('create-folder', (event, folder) => storage.createFolder(folder));
   ipcMain.handle('update-folder', (event, folder) => storage.updateFolder(folder));
   ipcMain.handle('delete-folder', (event, folderId) => storage.deleteFolder(folderId));
+
+  // File/folder attachment — the renderer never touches `fs` directly, it just
+  // gets back already-read text content (or an error) from a native dialog.
+  ipcMain.handle('pick-attachment', (event) => pickAttachment(mainWindow));
 
   // System monitoring handlers
   ipcMain.handle('get-system-info', async () => {

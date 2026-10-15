@@ -1,4 +1,4 @@
-import type { DBChat, DBFolder, DBMessage } from './types'
+import type { AttachmentPickResult, DBChat, DBFolder, DBMessage } from './types'
 import type { ChatGPTModel, LoginProfile, ResponseInputMessage, SessionState, SignInOptions } from '@siwc/local'
 
 export interface ElectronWindow {
@@ -39,6 +39,9 @@ export interface ElectronWindow {
     cancelStream: (requestId: string) => Promise<void>
     onSessionChanged: (callback: (session: SessionState) => void) => () => void
     onStreamChunk: (callback: (payload: { requestId: string; delta: string }) => void) => () => void
+  }
+  attachments: {
+    pick: () => Promise<AttachmentPickResult>
   }
 }
 
