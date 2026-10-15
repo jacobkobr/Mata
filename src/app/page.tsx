@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { X } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { Composer } from '@/components/chat/composer'
 import { MessageList } from '@/components/chat/message-list'
@@ -27,7 +28,7 @@ export default function Home() {
   const isQuickAskMode = windowMode === 'quickask'
   const [isCompactMode, setIsCompactMode] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  const { messages, isLoading, sendMessage, stopGeneration } = useChatStore()
+  const { messages, isLoading, sendMessage, stopGeneration, queueMessage, queuedMessages, removeQueuedMessage } = useChatStore()
   const { setTheme, theme } = useTheme()
   const { containerRef, registerMessageRef, scrollToMessage, activeId } = useMessageRail(messages.map(m => m.id))
   const quickBookmarkColor = useRailStore((state) => state.quickBookmarkColor)
@@ -50,13 +51,14 @@ export default function Home() {
     toggleTheme: () => setTheme(theme === 'dark' ? 'light' : 'dark'),
   })
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!input.trim() || isLoading) return
+    if (!input.trim()) return
 
     const content = input.trim()
     setInput('')
-    await sendMessage(content)
+    // Queues behind the in-flight reply instead of being blocked when isLoading.
+    queueMessage(content)
   }
 
   const handleFileContent = async (content: string, type: 'text' | 'image', mimeType?: string) => {
@@ -123,6 +125,27 @@ export default function Home() {
                 />
               </div>
             ) : null}
+
+            {queuedMessages.length > 0 && (
+              <div className="mb-2 flex flex-col gap-1">
+                {queuedMessages.map((msg, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-1.5 text-xs text-muted-foreground"
+                  >
+                    <span className="shrink-0 font-medium text-foreground/70">Queued</span>
+                    <span className="flex-1 truncate">{msg}</span>
+                    <button
+                      onClick={() => removeQueuedMessage(index)}
+                      className="shrink-0 rounded p-0.5 hover:bg-accent hover:text-foreground"
+                      aria-label="Remove from queue"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
 
             <Composer
               ref={inputRef}

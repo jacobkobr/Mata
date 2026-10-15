@@ -67,34 +67,51 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
         ref={ref}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
+        placeholder={isLoading ? 'Type to queue another message...' : placeholder}
         rows={1}
-        disabled={isLoading}
         className={cn(
-          'flex-1 resize-none rounded-lg border border-input bg-background px-3 focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50',
+          'flex-1 resize-none rounded-lg border border-input bg-background px-3 focus:outline-none focus:ring-2 focus:ring-ring',
           isCompact ? 'h-9 py-2 text-sm' : 'h-[50px] py-3'
         )}
         onKeyDown={handleKeyDown}
       />
 
-      {isLoading && onStop ? (
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={onStop}
-          size={isCompact ? 'icon' : 'default'}
-          className={height}
-          title="Stop generating"
-        >
-          <Square className={cn('fill-current', isCompact ? 'h-3.5 w-3.5' : 'h-4 w-4')} />
-          {!isCompact && showSendLabel && <span className="font-medium">Stop</span>}
-        </Button>
-      ) : (
+      {/* isLoading no longer disables submission — typing and hitting send/Enter
+          while a reply streams queues the message instead (see onSubmit
+          upstream), rather than blocking the composer until it's done. */}
+      {isLoading && onStop && (
+        <>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={onStop}
+            size={isCompact ? 'icon' : 'default'}
+            className={height}
+            title="Stop generating"
+          >
+            <Square className={cn('fill-current', isCompact ? 'h-3.5 w-3.5' : 'h-4 w-4')} />
+            {!isCompact && showSendLabel && <span className="font-medium">Stop</span>}
+          </Button>
+          <Button
+            type="submit"
+            disabled={!value.trim()}
+            variant="outline"
+            size={isCompact ? 'icon' : 'default'}
+            className={height}
+            title="Queue message"
+          >
+            <Send className={isCompact ? 'h-4 w-4' : 'h-5 w-5'} />
+            {!isCompact && showSendLabel && <span className="font-medium">Queue</span>}
+          </Button>
+        </>
+      )}
+      {!(isLoading && onStop) && (
         <Button
           type="submit"
-          disabled={isLoading || !value.trim()}
+          disabled={!value.trim()}
           size={isCompact ? 'icon' : 'default'}
           className={height}
+          title={isLoading ? 'Queue message' : undefined}
         >
           {isLoading ? (
             <Loader2 className={cn('animate-spin', isCompact ? 'h-4 w-4' : 'h-5 w-5')} />

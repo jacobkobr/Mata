@@ -22,7 +22,7 @@ export function QuickAsk() {
   const [input, setInput] = useState('')
   const [showFileUpload, setShowFileUpload] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  const { messages, isLoading, sendMessage, stopGeneration } = useChatStore()
+  const { messages, isLoading, sendMessage, queueMessage, stopGeneration } = useChatStore()
   const hasExpandedRef = useRef(false)
 
   useEffect(() => {
@@ -46,12 +46,12 @@ export function QuickAsk() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!input.trim() || isLoading) return
+    if (!input.trim()) return
     const content = input.trim()
     setInput('')
-    await sendMessage(content)
+    queueMessage(content)
   }
 
   const handleFileContent = async (content: string, type: 'text' | 'image', mimeType?: string) => {

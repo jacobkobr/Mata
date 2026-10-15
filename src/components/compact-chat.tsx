@@ -11,20 +11,20 @@ export function CompactChat() {
   const [input, setInput] = useState('')
   const [isExpanded, setIsExpanded] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  const { messages, isLoading, sendMessage, stopGeneration } = useChatStore()
+  const { messages, isLoading, queueMessage, stopGeneration } = useChatStore()
 
   useEffect(() => {
     inputRef.current?.focus()
   }, [])
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!input.trim() || isLoading) return
+    if (!input.trim()) return
 
     setIsExpanded(true)
     const content = input.trim()
     setInput('')
-    await sendMessage(content)
+    queueMessage(content)
   }
 
   const handleClose = async () => {
