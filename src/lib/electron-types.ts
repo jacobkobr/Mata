@@ -1,4 +1,4 @@
-import type { DBChat, DBMessage } from './types'
+import type { DBChat, DBFolder, DBMessage } from './types'
 import type { ChatGPTModel, LoginProfile, ResponseInputMessage, SessionState, SignInOptions } from '@siwc/local'
 
 export interface ElectronWindow {
@@ -16,6 +16,10 @@ export interface ElectronWindow {
     addMessage: (message: DBMessage) => Promise<boolean>
     updateMessage: (message: DBMessage) => Promise<boolean>
     deleteMessage: (messageId: string) => Promise<boolean>
+    getAllFolders: () => Promise<DBFolder[]>
+    createFolder: (folder: DBFolder) => Promise<boolean>
+    updateFolder: (folder: DBFolder) => Promise<boolean>
+    deleteFolder: (folderId: string) => Promise<boolean>
   }
   // Sign in with ChatGPT — session state and chat text only, never tokens.
   chatgpt: {

@@ -6,6 +6,7 @@ const path = require('path');
 const USER_DATA_DIR = app.getPath('userData');
 const CHATS_FILE = path.join(USER_DATA_DIR, 'chats.json');
 const MESSAGES_FILE = path.join(USER_DATA_DIR, 'messages.json');
+const FOLDERS_FILE = path.join(USER_DATA_DIR, 'folders.json');
 
 // Initialize storage files if they don't exist
 function initStorage() {
@@ -15,6 +16,9 @@ function initStorage() {
     }
     if (!fs.existsSync(MESSAGES_FILE)) {
       fs.writeFileSync(MESSAGES_FILE, JSON.stringify([]));
+    }
+    if (!fs.existsSync(FOLDERS_FILE)) {
+      fs.writeFileSync(FOLDERS_FILE, JSON.stringify([]));
     }
   } catch (error) {
     console.error('Failed to initialize storage:', error);
@@ -136,6 +140,62 @@ function deleteMessage(messageId) {
   }
 }
 
+// Folder operations
+function getAllFolders() {
+  try {
+    const data = fs.readFileSync(FOLDERS_FILE, 'utf8');
+    return JSON.parse(data);
+  } catch (error) {
+    console.error('Failed to read folders:', error);
+    return [];
+  }
+}
+
+function createFolder(folder) {
+  try {
+    const folders = getAllFolders();
+    folders.push(folder);
+    fs.writeFileSync(FOLDERS_FILE, JSON.stringify(folders, null, 2));
+    return true;
+  } catch (error) {
+    console.error('Failed to create folder:', error);
+    return false;
+  }
+}
+
+function updateFolder(folder) {
+  try {
+    const folders = getAllFolders();
+    const index = folders.findIndex(f => f.id === folder.id);
+    if (index === -1) return false;
+    folders[index] = folder;
+    fs.writeFileSync(FOLDERS_FILE, JSON.stringify(folders, null, 2));
+    return true;
+  } catch (error) {
+    console.error('Failed to update folder:', error);
+    return false;
+  }
+}
+
+function deleteFolder(folderId) {
+  try {
+    const folders = getAllFolders();
+    const filtered = folders.filter(f => f.id !== folderId);
+    fs.writeFileSync(FOLDERS_FILE, JSON.stringify(filtered, null, 2));
+
+    // Chats in a deleted folder go back to ungrouped rather than vanishing.
+    const chats = getAllChats();
+    const updatedChats = chats.map(chat =>
+      chat.folderId === folderId ? { ...chat, folderId: null } : chat
+    );
+    fs.writeFileSync(CHATS_FILE, JSON.stringify(updatedChats, null, 2));
+    return true;
+  } catch (error) {
+    console.error('Failed to delete folder:', error);
+    return false;
+  }
+}
+
 // Initialize storage on module load
 initStorage();
 
@@ -148,4 +208,8 @@ module.exports = {
   addMessage,
   updateMessage,
   deleteMessage,
+  getAllFolders,
+  createFolder,
+  updateFolder,
+  deleteFolder,
 };

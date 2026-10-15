@@ -4,7 +4,7 @@ import { createOllamaProvider, createChatGPTProvider, MODEL_PULL_NAMES, type Pro
 import { AI_MODELS } from '@/lib/config'
 import { useSettingsStore } from './settings-store'
 import * as chatService from '@/lib/chat-service'
-import type { DBChat, DBMessage } from '@/lib/types'
+import type { DBChat, DBFolder, DBMessage } from '@/lib/types'
 import { indexMessage, clearChatIndex, clearAllIndices, searchMessages } from '@/lib/indexing-service'
 import { toast } from '@/components/ui/use-toast'
 
@@ -32,11 +32,32 @@ interface ChatHistory {
   lastUpdated: number
   modelId: string
   createdAt: number
+  pinned: boolean
+  tags: string[]
+  folderId: string | null
+}
+
+export interface Folder {
+  id: string
+  name: string
+  color?: string
+  createdAt: number
+}
+
+/** Fills in defaults for fields that don't exist on chats saved before folders/tags/pins shipped. */
+function withChatDefaults(chat: DBChat): Omit<ChatHistory, 'messages'> {
+  return {
+    ...chat,
+    pinned: chat.pinned ?? false,
+    tags: chat.tags ?? [],
+    folderId: chat.folderId ?? null,
+  }
 }
 
 interface ChatState {
   currentChatId: string | null
   chatHistories: Record<string, ChatHistory>
+  folders: Record<string, Folder>
   messages: Message[]
   isLoading: boolean
   error: string | null
@@ -44,6 +65,9 @@ interface ChatState {
   loadChats: () => Promise<void>
   addMessage: (message: Omit<Message, 'id' | 'timestamp'>) => void
   sendMessage: (content: string, imageData?: { content: string; type: string }) => Promise<void>
+  queueMessage: (content: string) => void
+  removeQueuedMessage: (index: number) => void
+  queuedMessages: string[]
   stopGeneration: () => void
   regenerateLastResponse: () => Promise<void>
   editMessage: (messageId: string, newContent: string) => Promise<void>
@@ -56,6 +80,13 @@ interface ChatState {
   updateChatTitle: (chatId: string, title: string) => void
   clearAllChats: () => Promise<void>
   searchChatHistory: (query: string) => void
+  togglePinChat: (chatId: string) => Promise<void>
+  addTagToChat: (chatId: string, tag: string) => Promise<void>
+  removeTagFromChat: (chatId: string, tag: string) => Promise<void>
+  moveChatToFolder: (chatId: string, folderId: string | null) => Promise<void>
+  createFolder: (name: string) => Promise<string>
+  renameFolder: (folderId: string, name: string) => Promise<void>
+  deleteFolder: (folderId: string) => Promise<void>
 }
 
 const INSTALLATION_INSTRUCTIONS: Record<string, string> = {
@@ -275,21 +306,26 @@ export const useChatStore = create<ChatState>()((set, get) => {
   return {
   currentChatId: null,
   chatHistories: {},
+  folders: {},
   messages: [],
   isLoading: false,
   error: null,
   searchResults: [],
+  queuedMessages: [],
 
   loadChats: async () => {
     try {
-      const chats = await chatService.getAllChats()
+      const [chats, folders] = await Promise.all([
+        chatService.getAllChats(),
+        chatService.getAllFolders(),
+      ])
       const chatHistories: Record<string, ChatHistory> = {}
-      
+
       for (const chat of chats) {
         const dbMessages = await chatService.getChatMessages(chat.id)
         const messages = dbMessages.map(convertDBMessageToMessage)
         chatHistories[chat.id] = {
-          ...chat,
+          ...withChatDefaults(chat),
           messages,
         }
         // Index all messages
@@ -298,7 +334,12 @@ export const useChatStore = create<ChatState>()((set, get) => {
         }
       }
 
-      set({ chatHistories })
+      const folderRecord: Record<string, Folder> = {}
+      for (const folder of folders) {
+        folderRecord[folder.id] = folder
+      }
+
+      set({ chatHistories, folders: folderRecord })
     } catch (error) {
       console.error('Failed to load chats:', error)
     }
@@ -316,6 +357,9 @@ export const useChatStore = create<ChatState>()((set, get) => {
       lastUpdated: now,
       modelId: settings.selectedModel,
       createdAt: now,
+      pinned: false,
+      tags: [],
+      folderId: null,
     }
 
     await chatService.createChat(newChat)
@@ -509,7 +553,29 @@ export const useChatStore = create<ChatState>()((set, get) => {
     } finally {
       abortController = null
       set({ isLoading: false })
+      // Drain the queue: whatever the user typed while this reply was streaming
+      // goes out next, in the order it was typed. Runs whether this turn
+      // succeeded, errored, or was stopped — a queued message shouldn't be
+      // silently dropped just because the one ahead of it failed.
+      const [next, ...rest] = get().queuedMessages
+      if (next !== undefined) {
+        set({ queuedMessages: rest })
+        get().sendMessage(next)
+      }
     }
+  },
+
+  queueMessage: (content: string) => {
+    if (!content.trim()) return
+    if (get().isLoading) {
+      set((state) => ({ queuedMessages: [...state.queuedMessages, content] }))
+    } else {
+      get().sendMessage(content)
+    }
+  },
+
+  removeQueuedMessage: (index: number) => {
+    set((state) => ({ queuedMessages: state.queuedMessages.filter((_, i) => i !== index) }))
   },
 
   stopGeneration: () => {
@@ -688,5 +754,96 @@ export const useChatStore = create<ChatState>()((set, get) => {
     const results = searchMessages(query)
     set({ searchResults: results })
   },
+
+  togglePinChat: async (chatId: string) => {
+    const chat = get().chatHistories[chatId]
+    if (!chat) return
+    const updated = { ...chat, pinned: !chat.pinned }
+    set((state) => ({ chatHistories: { ...state.chatHistories, [chatId]: updated } }))
+    try {
+      await chatService.updateChat(updated)
+    } catch (error) {
+      console.error('Failed to toggle pin:', error)
+    }
+  },
+
+  addTagToChat: async (chatId: string, tag: string) => {
+    const trimmed = tag.trim()
+    if (!trimmed) return
+    const chat = get().chatHistories[chatId]
+    if (!chat || chat.tags.includes(trimmed)) return
+    const updated = { ...chat, tags: [...chat.tags, trimmed] }
+    set((state) => ({ chatHistories: { ...state.chatHistories, [chatId]: updated } }))
+    try {
+      await chatService.updateChat(updated)
+    } catch (error) {
+      console.error('Failed to add tag:', error)
+    }
+  },
+
+  removeTagFromChat: async (chatId: string, tag: string) => {
+    const chat = get().chatHistories[chatId]
+    if (!chat) return
+    const updated = { ...chat, tags: chat.tags.filter(t => t !== tag) }
+    set((state) => ({ chatHistories: { ...state.chatHistories, [chatId]: updated } }))
+    try {
+      await chatService.updateChat(updated)
+    } catch (error) {
+      console.error('Failed to remove tag:', error)
+    }
+  },
+
+  moveChatToFolder: async (chatId: string, folderId: string | null) => {
+    const chat = get().chatHistories[chatId]
+    if (!chat) return
+    const updated = { ...chat, folderId }
+    set((state) => ({ chatHistories: { ...state.chatHistories, [chatId]: updated } }))
+    try {
+      await chatService.updateChat(updated)
+    } catch (error) {
+      console.error('Failed to move chat to folder:', error)
+    }
+  },
+
+  createFolder: async (name: string) => {
+    const folder: Folder = { id: uuidv4(), name: name.trim() || 'New Folder', createdAt: Date.now() }
+    set((state) => ({ folders: { ...state.folders, [folder.id]: folder } }))
+    try {
+      await chatService.createFolder(folder)
+    } catch (error) {
+      console.error('Failed to create folder:', error)
+    }
+    return folder.id
+  },
+
+  renameFolder: async (folderId: string, name: string) => {
+    const folder = get().folders[folderId]
+    if (!folder || !name.trim()) return
+    const updated = { ...folder, name: name.trim() }
+    set((state) => ({ folders: { ...state.folders, [folderId]: updated } }))
+    try {
+      await chatService.updateFolder(updated)
+    } catch (error) {
+      console.error('Failed to rename folder:', error)
+    }
+  },
+
+  deleteFolder: async (folderId: string) => {
+    try {
+      await chatService.deleteFolder(folderId)
+    } catch (error) {
+      console.error('Failed to delete folder:', error)
+    }
+    set((state) => {
+      const { [folderId]: _, ...remainingFolders } = state.folders
+      const chatHistories = { ...state.chatHistories }
+      for (const id of Object.keys(chatHistories)) {
+        if (chatHistories[id].folderId === folderId) {
+          chatHistories[id] = { ...chatHistories[id], folderId: null }
+        }
+      }
+      return { folders: remainingFolders, chatHistories }
+    })
+  },
   }
-}) 
+})

@@ -78,6 +78,10 @@ interface ElectronAPI {
     addMessage(message: any): Promise<any>
     updateMessage(message: any): Promise<any>
     deleteMessage(messageId: string): Promise<any>
+    getAllFolders(): Promise<any>
+    createFolder(folder: any): Promise<any>
+    updateFolder(folder: any): Promise<any>
+    deleteFolder(folderId: string): Promise<any>
   }
   chatgpt: {
     signIn(options?: SignInOptions): Promise<SessionState>

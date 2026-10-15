@@ -168,6 +168,10 @@ function initializeIpcHandlers() {
   ipcMain.handle('add-message', (event, message) => storage.addMessage(message));
   ipcMain.handle('update-message', (event, message) => storage.updateMessage(message));
   ipcMain.handle('delete-message', (event, messageId) => storage.deleteMessage(messageId));
+  ipcMain.handle('get-all-folders', () => storage.getAllFolders());
+  ipcMain.handle('create-folder', (event, folder) => storage.createFolder(folder));
+  ipcMain.handle('update-folder', (event, folder) => storage.updateFolder(folder));
+  ipcMain.handle('delete-folder', (event, folderId) => storage.deleteFolder(folderId));
 
   // System monitoring handlers
   ipcMain.handle('get-system-info', async () => {

@@ -157,6 +157,38 @@ try {
             console.error('Failed to delete message:', error);
             throw error;
           }
+        },
+        getAllFolders: async () => {
+          try {
+            return await ipcRenderer.invoke('get-all-folders');
+          } catch (error) {
+            console.error('Failed to get folders:', error);
+            throw error;
+          }
+        },
+        createFolder: async (folder) => {
+          try {
+            return await ipcRenderer.invoke('create-folder', folder);
+          } catch (error) {
+            console.error('Failed to create folder:', error);
+            throw error;
+          }
+        },
+        updateFolder: async (folder) => {
+          try {
+            return await ipcRenderer.invoke('update-folder', folder);
+          } catch (error) {
+            console.error('Failed to update folder:', error);
+            throw error;
+          }
+        },
+        deleteFolder: async (folderId) => {
+          try {
+            return await ipcRenderer.invoke('delete-folder', folderId);
+          } catch (error) {
+            console.error('Failed to delete folder:', error);
+            throw error;
+          }
         }
       },
       // Sign in with ChatGPT — renderer only ever sees session state and chat

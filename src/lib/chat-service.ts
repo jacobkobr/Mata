@@ -1,4 +1,4 @@
-import type { DBChat, DBMessage } from './types'
+import type { DBChat, DBFolder, DBMessage } from './types'
 import '@/lib/electron-types'
 
 // Check if we're running in Electron
@@ -8,6 +8,7 @@ const isElectron = typeof window !== 'undefined' && window.electron;
 const STORAGE_KEYS = {
   CHATS: 'mata:chats',
   MESSAGES: 'mata:messages',
+  FOLDERS: 'mata:folders',
 };
 
 // Browser storage implementation (used only outside Electron, e.g. the Netlify preview)
@@ -121,6 +122,58 @@ const browserStorage = {
       return true;
     } catch (error) {
       console.error('Failed to delete message from localStorage:', error);
+      return false;
+    }
+  },
+
+  getAllFolders: (): DBFolder[] => {
+    try {
+      const folders = localStorage.getItem(STORAGE_KEYS.FOLDERS);
+      return folders ? JSON.parse(folders) : [];
+    } catch (error) {
+      console.error('Failed to get folders from localStorage:', error);
+      return [];
+    }
+  },
+
+  createFolder: (folder: DBFolder): boolean => {
+    try {
+      const folders = browserStorage.getAllFolders();
+      folders.push(folder);
+      localStorage.setItem(STORAGE_KEYS.FOLDERS, JSON.stringify(folders));
+      return true;
+    } catch (error) {
+      console.error('Failed to create folder in localStorage:', error);
+      return false;
+    }
+  },
+
+  updateFolder: (folder: DBFolder): boolean => {
+    try {
+      const folders = browserStorage.getAllFolders();
+      const index = folders.findIndex(f => f.id === folder.id);
+      if (index === -1) return false;
+      folders[index] = folder;
+      localStorage.setItem(STORAGE_KEYS.FOLDERS, JSON.stringify(folders));
+      return true;
+    } catch (error) {
+      console.error('Failed to update folder in localStorage:', error);
+      return false;
+    }
+  },
+
+  deleteFolder: (folderId: string): boolean => {
+    try {
+      const folders = browserStorage.getAllFolders().filter(f => f.id !== folderId);
+      localStorage.setItem(STORAGE_KEYS.FOLDERS, JSON.stringify(folders));
+
+      const chats = browserStorage.getAllChats().map(chat =>
+        chat.folderId === folderId ? { ...chat, folderId: null } : chat
+      );
+      localStorage.setItem(STORAGE_KEYS.CHATS, JSON.stringify(chats));
+      return true;
+    } catch (error) {
+      console.error('Failed to delete folder from localStorage:', error);
       return false;
     }
   }
@@ -240,6 +293,54 @@ export async function deleteMessage(messageId: string): Promise<void> {
     }
   } catch (error) {
     console.error('Failed to delete message:', error);
+    throw error;
+  }
+}
+
+export async function getAllFolders(): Promise<DBFolder[]> {
+  try {
+    if (isElectron) {
+      return await window.electron.storage.getAllFolders();
+    }
+    return browserStorage.getAllFolders();
+  } catch (error) {
+    console.error('Failed to get folders:', error);
+    return [];
+  }
+}
+
+export async function createFolder(folder: DBFolder): Promise<void> {
+  try {
+    const success = isElectron
+      ? await window.electron.storage.createFolder(folder)
+      : browserStorage.createFolder(folder);
+    if (!success) throw new Error('Failed to create folder');
+  } catch (error) {
+    console.error('Failed to create folder:', error);
+    throw error;
+  }
+}
+
+export async function updateFolder(folder: DBFolder): Promise<void> {
+  try {
+    const success = isElectron
+      ? await window.electron.storage.updateFolder(folder)
+      : browserStorage.updateFolder(folder);
+    if (!success) throw new Error('Failed to update folder');
+  } catch (error) {
+    console.error('Failed to update folder:', error);
+    throw error;
+  }
+}
+
+export async function deleteFolder(folderId: string): Promise<void> {
+  try {
+    const success = isElectron
+      ? await window.electron.storage.deleteFolder(folderId)
+      : browserStorage.deleteFolder(folderId);
+    if (!success) throw new Error('Failed to delete folder');
+  } catch (error) {
+    console.error('Failed to delete folder:', error);
     throw error;
   }
 }
